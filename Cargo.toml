@@ -5,7 +5,6 @@ authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 
 [lib]
 name = "vox_box"
-kind = ["dylib", "static"]
 
 [dependencies]
 nalgebra = "0.2"
