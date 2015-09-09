@@ -2,12 +2,13 @@
 name = "vox_box"
 version = "0.1.0"
 authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
+include = ["src/**/*.rs", "Cargo.toml"]
 
 [lib]
 name = "vox_box"
 
 [dependencies]
-nalgebra = "0.2"
+num = { path = "../num" }
 
 [profile.release]
 lto = true
