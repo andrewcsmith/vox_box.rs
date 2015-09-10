@@ -6,13 +6,11 @@ pub trait Polynomial<T: Neg> {
     fn degree(&self) -> usize;
     fn off_low(&self) -> usize;
     fn laguerre(&self, z: Complex64) -> Complex64;
-    fn find_roots(&self) -> Result<Vec<T>, &str>;
+    fn find_roots(&self) -> Result<Vec<Complex64>, &str>;
     fn div_polynomial(&mut self, Vec<T>) -> Result<Vec<T>, &str>;
 }
 
 impl Polynomial<f64> for Vec<f64> {
-    // Mutates self into quotient
-    // Returns the remainder
     fn div_polynomial(&mut self, other: Vec<f64>) -> Result<Vec<f64>, &str> {
         if other.len() > 1 {
             let mut ds = other.len() - 1;
@@ -43,44 +41,45 @@ impl Polynomial<f64> for Vec<f64> {
         }
     }
 
-    fn find_roots(&self) -> Result<Vec<f64>, &str> {
-        let mut m = self.degree();
+    fn find_roots(&self) -> Result<Vec<Complex64>, &str> {
+        let mut m: usize = self.degree();
         if m < 1 { return Err("Zero degree polynomial: no roots to be found.") }
-        let mut coH = m;
-        let mut coL = self.off_low();
-        let mut z_roots = vec![0f64; coL];
+
+        // Initialize coefficient highs and lows
+        let mut coH: usize = m;
+        let mut coL: usize = self.off_low();
         m = m - coL;
-        let mut coeffs = Vec::<f64>::with_capacity(coH - coL);
+
+        // Initialize roots to output
+        let mut z_roots: Vec<Complex64> = vec![Complex64::new(0f64, 0f64); coL];
+        let mut coeffs: Vec<f64> = Vec::<f64>::with_capacity(coH - coL);
         for co in self[coL..(coH+1)].iter() {
             coeffs.push(*co);
         }
 
-        println!("Coeffs are {:?}", coeffs);
-
         while m > 2 {
             let mut z = coeffs.laguerre(Complex64::new(-64.0, -64.0));
-            if z.im.abs() < 1e-11 { 
-                z_roots.push(z.re);
-                match coeffs.div_polynomial(vec![z.re.neg(), 1f64]) {
-                    Err(x) => { return Err("Failed to find roots") },
-                    Ok(_) => { }
-                }
-            } else {
-                return Err("Not yet implemented for complex roots");
+            // Some margin of error for mostly-real roots
+            z_roots.push(z);
+            match coeffs.div_polynomial(vec![z.re.neg(), 1f64]) {
+                Err(x) => { return Err("Failed to find roots") },
+                Ok(_) => { }
             }
             m = m - 1;
         }
+
         // Solve quadradic equation
         if m == 2 {
-            let a2 = coeffs[2] * 2f64;
-            let d = ((coeffs[1].powi(2)) - (4f64 * coeffs[2] * coeffs[0])).sqrt();
-            let x = coeffs[1].neg();
+            let a2 = Complex64::new(coeffs[2] * 2f64, 0f64);
+            let d = Complex64::new(((coeffs[1].powi(2)) - (4f64 * coeffs[2] * coeffs[0])), 0f64);
+            let x = Complex64::new(coeffs[1].neg(), 0f64);
+            // println!("a2: {:?}, d: {:?}, x: {:?}", a2, d, x);
             z_roots.push((x + d) / a2);
             z_roots.push((x - d) / a2);
         }
         // Solve linear equation
         if m == 1 {
-            z_roots.push(coeffs[0].neg() / coeffs[1]);
+            z_roots.push(Complex64::new(coeffs[0].neg() / coeffs[1], 0f64));
         }
         Ok(z_roots)
     }
@@ -146,18 +145,13 @@ mod tests {
         let exp_rem = vec![-0.32];
         let mut a = vec![1.0f64, 2.5, -2.0];
         let b = vec![1.0f64, 2.5];
-
         {
             let rem = a.div_polynomial(b).unwrap();
-            println!("Remainder: {:?}", rem);
             assert_eq!(rem.len(), exp_rem.len());
             for i in 0..exp_rem.len() {
                 assert!((rem[i] - exp_rem[i]).abs() < 1e-10);
             }
         }
-
-        println!("Quotient: {:?}", a); 
-
         assert_eq!(a.len(), exp_quo.len());
         for i in 0..exp_quo.len() {
             assert!((a[i] - exp_quo[i]).abs() < 1e-10);
@@ -193,31 +187,56 @@ mod tests {
     fn test_1d_roots() {
         let poly = vec![1.0, 2.5];
         let roots = poly.find_roots().unwrap();
-        let roots_exp = vec![-0.4];
-        assert_eq!(roots_exp[0], roots[0]);
+        let roots_exp = vec![Complex64::new(-0.4, 0.0)];
         assert_eq!(roots.len(), 1);
+        for i in 0..roots_exp.len() {
+            let diff = roots[i] - roots_exp[i];
+            assert!(diff.re.abs() < 1e-12);
+            assert!(diff.im.abs() < 1e-12);
+        }
     }
 
     #[test]
     fn test_2d_roots() {
         let poly = vec![1.0, 2.5, -2.0];
         let roots = poly.find_roots().unwrap();
-        let roots_exp = vec![-0.31872930440884, 1.5687293044088];
-        assert!((roots_exp[0] - roots[0]).abs() < 1e-13);
-        assert!((roots_exp[1] - roots[1]).abs() < 1e-13);
-        assert_eq!(roots.len(), 2);
+        let roots_exp = vec![Complex64::new(-0.31872930440884, 0.0), Complex64::new(1.5687293044088, 0.0)];
+        println!("Roots found: {:?}", roots);
+        assert_eq!(roots.len(), roots_exp.len());
+        for i in 0..roots_exp.len() {
+            let diff = roots[i] - roots_exp[i];
+            assert!(diff.re.abs() < 1e-12);
+            assert!(diff.im.abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_2d_complex_roots() {
+        let coeffs: Vec<f64> = vec![1.0, -2.5, 2.0];
+        let roots = coeffs.find_roots().unwrap();
+        let roots_exp = vec![Complex64::new( 0.625, 0.33071891388307 ), Complex64::new( 0.625, -0.33071891388307 )];
+        assert_eq!(roots.len(), roots_exp.len());
+        println!("Roots found: {:?}", roots);
+        for i in 0..roots_exp.len() {
+            let diff = roots[i] - roots_exp[i];
+            assert!(diff.re.abs() < 1e-12);
+            assert!(diff.im.abs() < 1e-12);
+        }
     }
 
     #[test]
     fn test_hi_d_roots() {
         let lpc_exp: Vec<f64> = vec![1.0, 2.5, -2.0, -3.0];
-        let roots_exp: Vec<f64> = vec![-1.1409835232292, -0.35308705904629, 0.82740391560878];
-        let roots: Vec<f64> = lpc_exp.find_roots().unwrap();
+        let roots_exp = vec![Complex64::new(-1.1409835232292, 0.0), Complex64::new(-0.35308705904629, 0.0), Complex64::new(0.82740391560878, 0.0)];
+        let roots = lpc_exp.find_roots().unwrap();
         println!("Roots: {:?}", roots);
-        assert!((roots_exp[0] - roots[0]).abs() < 1e-13);
-        assert!((roots_exp[1] - roots[1]).abs() < 1e-13);
-        assert!((roots_exp[2] - roots[2]).abs() < 1e-13);
-        assert_eq!(roots.len(), 3);
+
+        assert_eq!(roots.len(), roots_exp.len());
+        for i in 0..roots_exp.len() {
+            let diff = roots[i] - roots_exp[i];
+            assert!(diff.re.abs() < 1e-12);
+            assert!(diff.im.abs() < 1e-12);
+        }
     }
 }
 

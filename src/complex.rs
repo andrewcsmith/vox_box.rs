@@ -1,5 +1,6 @@
 extern crate num;
 pub use num::complex::{Complex64};
+use std::ops::{Add, Neg};
 
 pub trait SquareRoot<T> {
     fn sqrt(&self) -> T;
@@ -8,8 +9,8 @@ pub trait SquareRoot<T> {
 // http://math.stackexchange.com/questions/44406/how-do-i-get-the-square-root-of-a-complex-number
 impl SquareRoot<Complex64> for Complex64 {
     fn sqrt(&self) -> Complex64 {
-        let c = self + Complex64::new(self.norm(), 0.0);
-        Complex64::new(self.norm().sqrt(), 0.0) * c / Complex64::new(c.norm(), 0.0)
+        let (r, theta) = self.to_polar();
+        Complex64::from_polar(&r.sqrt(), &(theta / 2.0))
     }
 }
 
@@ -31,5 +32,15 @@ mod tests {
         println!("Complex is {:?}", result);
         assert!(result.re.abs() < delta);
         assert!(result.im.abs() < delta);
+    }
+
+    #[test]
+    fn test_negative_complex_roots() {
+        let c = Complex64::new(-9.0, 0.0);
+        let exp_root = Complex64::new(0.0, 3.0);
+        let root = c.sqrt();
+        println!("Root found was: {:?}", root);
+        assert!((root.re - exp_root.re).abs() < 1e-12);
+        assert!((root.im - exp_root.im).abs() < 1e-12);
     }
 }
