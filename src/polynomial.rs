@@ -14,23 +14,20 @@ pub trait Polynomial<T: Neg> {
 impl Polynomial<f64> for Vec<Complex<f64>> {
     fn div_polynomial(&mut self, other: Vec<Complex<f64>>) -> Result<Vec<Complex<f64>>, &str> {
         if other.len() > 1 {
-            let mut ds = other.len() - 1;
-            let ns = self.len() - 1;
-            while other[ds] == Complex64::zero() { ds = ds - 1; }
-            if ds < 0 { return Err("tried to divide by zero"); }
             let mut rem = self.clone();
+            let ns = self.len() - 1;
+            let ds = match other.iter().rposition(|x| *x != Complex64::zero()) {
+                Some(x) => { x },
+                None => { return Err("Tried to divide by zero") }
+            };
             for i in (0..(ns - ds + 1)).rev() {
                 self[i] = rem[ds + i] / other[ds];
                 for j in (i..(ds + i)) {
                     rem[j] = rem[j] - (self[i] * other[j-i]);
                 }
             }
-            for i in ds..(ns+1) {
-                rem.pop();
-            }
-            for i in (0..(self.len() - ns - ds + 1)) {
-                self.pop();
-            }
+            for i in ds..(ns+1) { rem.pop(); }
+            for i in (0..(self.len() - ns - ds + 1)) { self.pop(); } 
             Ok(rem)
         } else {
             let divisor = other.first().unwrap();
@@ -47,14 +44,14 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
         if m < 1 { return Err("Zero degree polynomial: no roots to be found.") }
 
         // Initialize coefficient highs and lows
-        let coH = m;
-        let coL: usize = self.off_low();
-        m = m - coL;
+        let coeff_high = self.degree();
+        let coeff_low: usize = self.off_low();
+        m = m - coeff_low;
 
         // Initialize roots to output
-        let mut z_roots: Vec<Complex<f64>> = vec![Complex64::zero(); coL];
-        let mut coeffs: Vec<Complex<f64>> = Vec::<Complex<f64>>::with_capacity(coH - coL);
-        for co in self[coL..(coH+1)].iter() {
+        let mut z_roots: Vec<Complex<f64>> = vec![Complex64::zero(); coeff_low];
+        let mut coeffs: Vec<Complex<f64>> = Vec::<Complex<f64>>::with_capacity(coeff_high - coeff_low);
+        for co in self[coeff_low..(coeff_high+1)].iter() {
             coeffs.push(co.to_complex());
         }
 
