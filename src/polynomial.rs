@@ -40,13 +40,12 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
     }
 
     fn find_roots(&self) -> Result<Vec<Complex<f64>>, &str> {
-        let mut m: usize = self.degree();
-        if m < 1 { return Err("Zero degree polynomial: no roots to be found.") }
-
         // Initialize coefficient highs and lows
         let coeff_high = self.degree();
+        if coeff_high < 1 { return Err("Zero degree polynomial: no roots to be found.") }
+
         let coeff_low: usize = self.off_low();
-        m = m - coeff_low;
+        let mut m = coeff_high - coeff_low;
 
         // Initialize roots to output
         let mut z_roots: Vec<Complex<f64>> = vec![Complex64::zero(); coeff_low];
@@ -55,7 +54,7 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
             coeffs.push(co.to_complex());
         }
 
-        while m > 2 {
+        for i in (3..(m+1)).rev() {
             let z = coeffs.laguerre(Complex64::new(-64.0, -64.0));
             // Some margin of error for mostly-real roots
             z_roots.push(z);
@@ -84,15 +83,11 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
     }
 
     fn degree(&self) -> usize {
-        let mut d = self.len() - 1;
-        while self[d] == Complex64::zero() { d = d - 1; }
-        d
+        self.iter().rposition(|r| *r != Complex64::zero()).unwrap()
     }
 
     fn off_low(&self) -> usize {
-        let mut index = 0;
-        while self[index] == Complex64::zero() { index = index + 1 };
-        index
+        self.iter().position(|r| *r != Complex64::zero()).unwrap()
     }
 
     fn laguerre(&self, mut z: Complex<f64>) -> Complex<f64> {
