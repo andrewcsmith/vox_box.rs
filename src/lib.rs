@@ -1,16 +1,20 @@
 extern crate num;
-use num::complex::{Complex64};
-
-use std::iter::{Iterator, IntoIterator};
-use std::f64::consts::PI;
-use std::i16;
-use std::fs::File;
-use std::ops::*;
-use std::path::Path;
-use std::cmp::Ordering::Equal;
+use num::complex::{Complex, Complex32, Complex64};
 
 pub mod complex;
 pub mod polynomial;
+
+use std::iter::{Iterator};
+use std::f64::consts::PI;
+// use std::i16;
+// use std::fs::File;
+use std::ops::*;
+// use std::path::Path;
+use std::cmp::Ordering::Equal;
+use std::cmp::PartialOrd;
+
+use complex::ToComplex;
+use polynomial::Polynomial;
 
 pub trait Osc {
     fn sine(size: usize) -> Vec<f64>;
@@ -139,15 +143,41 @@ impl LPC<f64> for Vec<f64> {
     }
 }
 
+pub trait Resonance<T> {
+    fn resonances(self, sample_rate: u32) -> Vec<T>;
+}
+
+impl Resonance<f64> for Vec<Complex<f64>> {
+    // Give it some roots, it'll find the resonances
+    fn resonances(self, sample_rate: u32) -> Vec<f64> {
+        let mut res: Vec<f64> = self.iter()
+            .filter(|v| v.im >= 0f64)
+            .map(|v| v.im.atan2(v.re))
+            .map(|v| v * ((sample_rate as f64) / (2f64 * PI)))
+            .filter(|v| *v > 1f64)
+            .collect();
+        res.sort_by(|a, b| (a.partial_cmp(b)).unwrap());
+        res
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*; 
-    use std::cmp::Ordering::*;
+    use num::complex::Complex64;
 
     #[test]
     fn test_ac() { 
         let sine = Vec::<f64>::sine(16);
-        let auto = sine.autocorrelate(16);
+        sine.autocorrelate(16);
+    }
+
+    #[test]
+    fn test_resonances() {
+        let roots = vec![Complex64::new( -0.5, 0.86602540378444 ), Complex64::new( -0.5, -0.86602540378444 )];
+        let res = roots.resonances(300);
+        println!("Resonances: {:?}", res);
+        assert!((res[0] - 100.0).abs() < 1e-8);
     }
 
     #[test]
@@ -157,7 +187,6 @@ mod tests {
         auto.normalize();       
         let auto_exp = vec![1.0, 0.7071, 0.1250, -0.3536, -0.5, -0.3536, -0.1250, 0.0];
         // Rust output:
-        // let lpc_exp = vec![1.0, -0.7071, 0.7500, -0.4041, 2.4146];
         let lpc_exp = vec![1.0, -1.3122, 0.8660, -0.0875, -0.0103];
         let lpc = auto.lpc(4);
         // println!("LPC coeffs: {:?}", &lpc);
@@ -173,8 +202,8 @@ mod tests {
     fn test_pe() {
         let mut saw = Vec::<f64>::saw(32);
         let mut sine = Vec::<f64>::sine(32);
-        let pre_saw = saw.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
-        let pre_sine = sine.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
+        saw.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
+        sine.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
     }
 }
 
