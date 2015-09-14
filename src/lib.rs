@@ -1,5 +1,6 @@
 extern crate num;
 use num::complex::Complex;
+use num::{Float, FromPrimitive};
 
 pub mod complex;
 pub mod polynomial;
@@ -43,15 +44,15 @@ pub trait LPC<T> {
     fn lpc(&self, n_coeffs: usize) -> Vec<T>;
 }
 
-impl LPC<f64> for Vec<f64> {
-    fn lpc(&self, n_coeffs: usize) -> Vec<f64> {
-        let mut ac: Vec<f64> = vec![0f64; n_coeffs + 1];
-        let mut kc: Vec<f64> = vec![0f64; n_coeffs];
-        let mut tmp: Vec<f64> = vec![0f64; n_coeffs];
+impl<T> LPC<T> for Vec<T> where T: Float { 
+    fn lpc(&self, n_coeffs: usize) -> Vec<T> {
+        let mut ac: Vec<T> = vec![T::zero(); n_coeffs + 1];
+        let mut kc: Vec<T> = vec![T::zero(); n_coeffs];
+        let mut tmp: Vec<T> = vec![T::zero(); n_coeffs];
 
         /* order 0 */
         let mut err = self[0];
-        ac[0] = 1.0;
+        ac[0] = T::one();
 
         /* order >= 1 */
         for i in (1..n_coeffs+1) {
@@ -59,7 +60,7 @@ impl LPC<f64> for Vec<f64> {
             for j in (1..i) {
                 acc = acc + (ac[j] * self[i-j]);
             }
-            kc[i-1] = -1.0 * acc/err;
+            kc[i-1] = acc.neg() / err;
             ac[i] = kc[i-1];
             for j in (0..n_coeffs) {
                 tmp[j] = ac[j];
@@ -67,7 +68,7 @@ impl LPC<f64> for Vec<f64> {
             for j in (1..i) {
                 ac[j] = ac[j] + (kc[i-1] * tmp[i-j]);
             }
-            err = err * (1f64 - (kc[i-1] * kc[i-1]));
+            err = err * (T::one() - (kc[i-1] * kc[i-1]));
         };
         ac
     }
@@ -77,14 +78,14 @@ pub trait Resonance<T> {
     fn resonances(self, sample_rate: u32) -> Vec<T>;
 }
 
-impl Resonance<f64> for Vec<Complex<f64>> {
+impl<T> Resonance<T> for Vec<Complex<T>> where T: Float + FromPrimitive {
     // Give it some roots, it'll find the resonances
-    fn resonances(self, sample_rate: u32) -> Vec<f64> {
-        let mut res: Vec<f64> = self.iter()
-            .filter(|v| v.im >= 0f64)
-            .map(|v| v.im.atan2(v.re))
-            .map(|v| v * ((sample_rate as f64) / (2f64 * PI)))
-            .filter(|v| *v > 1f64)
+    fn resonances(self, sample_rate: u32) -> Vec<T> {
+        let freq_mul: T = T::from_f64((sample_rate as f64) / (PI * 2f64)).unwrap();
+        let mut res: Vec<T> = self.iter()
+            .filter(|v| v.im >= T::zero())
+            .map(|v| v.im.atan2(v.re) * freq_mul)
+            .filter(|v| *v > T::one())
             .collect();
         res.sort_by(|a, b| (a.partial_cmp(b)).unwrap());
         res

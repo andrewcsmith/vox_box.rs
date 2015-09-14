@@ -1,5 +1,6 @@
 extern crate num;
 pub use num::complex::{Complex, Complex32, Complex64};
+pub use num::Float;
 pub use std::ops::{Add, Sub};
 
 pub trait SquareRoot<T> {
@@ -22,22 +23,22 @@ pub trait ToComplexVec<T> {
     fn to_complex_vec(self) -> Vec<Complex<T>>;
 }
 
-impl ToComplex<f64> for Complex<f64> {
-    fn to_complex(self) -> Complex<f64> {
+impl<T> ToComplex<T> for Complex<T> where T: Float {
+    fn to_complex(self) -> Complex<T> {
         self
     }
 }
 
-impl ToComplex<f64> for f64 {
-    fn to_complex(self) -> Complex<f64> {
-        Complex::<f64>::new(self, 0f64)
+impl<T> ToComplex<T> for T where T: Float {
+    fn to_complex(self) -> Complex<T> {
+        Complex::<T>::new(self, T::zero())
     }
 }
 
-impl ToComplexVec<f64> for Vec<f64> {
-    fn to_complex_vec(self) -> Vec<Complex<f64>> {
+impl<T> ToComplexVec<T> for Vec<T> where T: Float {
+    fn to_complex_vec(self) -> Vec<Complex<T>> {
         self.iter().map(move |r| {
-            Complex::<f64>::new(*r, 0f64)
+            Complex::<T>::new(*r, T::zero())
         }).collect()
     }
 }
