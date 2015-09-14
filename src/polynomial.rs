@@ -1,5 +1,5 @@
 use super::complex::*;
-use std::ops::{Neg};
+use std::ops::Neg;
 use std::iter::*;
 use num::traits::Zero;
 
@@ -59,7 +59,7 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
             // Some margin of error for mostly-real roots
             z_roots.push(z);
             match coeffs.div_polynomial(vec![z.neg(), 1f64.to_complex()]) {
-                Err(x) => { return Err("Failed to find roots") },
+                Err(_) => { return Err("Failed to find roots") },
                 Ok(_) => { }
             }
             m = m - 1;
@@ -70,7 +70,6 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
             let a2 = coeffs[2] * 2f64.to_complex();
             let d = ((coeffs[1] * coeffs[1]) - (4f64.to_complex() * coeffs[2] * coeffs[0])).sqrt();
             let x = coeffs[1].neg();
-            let root = (x + d) / a2;
             // println!("a2: {:?}, d: {:?}, x: {:?}", a2, d, x);
             z_roots.push((x + d) / a2);
             z_roots.push((x - d) / a2);
@@ -92,9 +91,8 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
 
     fn laguerre(&self, mut z: Complex<f64>) -> Complex<f64> {
         let n: usize = self.len() - 1;
-        let max_iter: usize = 20;
-        let mut k = 1;
-        while k <= max_iter {
+        // max iterations of 20
+        for k in 0..20 {
             let mut alpha = self[n];
             let mut beta = Complex64::zero();
             let mut gamma = Complex64::zero();
@@ -111,18 +109,18 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
             let ca2 = ca * ca;
             let cb = ca2 - ((Complex64::new(2.0, 0.0) * gamma) / alpha);
             let c1 = (Complex64::new(((n-1) as f64), 0.0) * ((Complex64::new((n as f64), 0.0) * cb) - ca2)).sqrt();
+
             let cc1: Complex64 = ca + c1;
             let cc2: Complex64 = ca - c1;
-            let mut cc;
-            if cc1.norm() > cc2.norm() {
-                cc = cc1
+
+            let cc = if cc1.norm() > cc2.norm() {
+                cc1 / (n as f64).to_complex()
             } else {
-                cc = cc2
-            }
-            cc = cc / Complex64::new(n as f64, 0.0);
+                cc2 / (n as f64).to_complex()
+            };
+
             let c2 = cc.inv();
             z = z + c2;
-            k = k + 1;
         }
         z
     }

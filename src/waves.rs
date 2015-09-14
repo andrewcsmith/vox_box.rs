@@ -1,0 +1,80 @@
+use std::f64::consts::PI;
+use std::ops::*;
+
+pub trait Osc {
+    fn sine(size: usize) -> Vec<f64>;
+    fn saw(size: usize) -> Vec<f64>;
+}
+
+impl Osc for Vec<f64> {
+    fn sine(size: usize) -> Vec<f64> {
+        let mut sine: Vec<f64> = Vec::with_capacity(size);
+        for i in 0..size {
+            let phase: f64 = (i as f64) * 2.0 * PI / ((size) as f64);
+            sine.push(phase.sin());
+        }
+        sine
+    }
+
+    fn saw(size: usize) -> Vec<f64> {
+        let mut saw: Vec<f64> = Vec::with_capacity(size);
+        for i in 0..size {
+            let phase: f64 = (i as f64) / (size) as f64;
+            saw.push((phase - 0.5) * -2.0);
+        }
+        saw
+    }
+}
+
+pub trait Windowing {
+    fn hanning(size: usize) -> Vec<f64>;
+    fn hamming(size: usize) -> Vec<f64>;
+}
+
+impl Windowing for Vec<f64> {
+    fn hanning(size: usize) -> Vec<f64> {
+        let mut win: Vec<f64> = Vec::with_capacity(size);
+        for i in 0..size {
+            let phase: f64 = ((i as f64) / ((size - 1) as f64)) * 2.0 * PI;
+            win.push(0.5 * (1.0 - phase.cos()));
+        }
+        win
+    }
+    
+    fn hamming(size: usize) -> Vec<f64> {
+        let mut win: Vec<f64> = Vec::with_capacity(size);
+        for i in 0..size {
+            let phase: f64 = ((i as f64) / ((size - 1) as f64)) * 2.0 * PI;
+            win.push(0.54 - (0.46 * phase.cos()));
+        }
+        win
+    }
+}
+
+pub trait Filter<T> {
+    fn preemphasis(&mut self, factor: f64) -> &mut Vec<T>;
+}
+
+/// Factor is center frequency / sample_rate
+impl<T> Filter<T> for Vec<T> where T: Mul<f64, Output=T> + Sub<T, Output=T> + Copy {
+    fn preemphasis<'a>(&'a mut self, factor: f64) -> &'a mut Vec<T> {
+        let filter = (-2.0 * PI * factor).exp();
+        for i in (1..self.len()).rev() {
+            self[i] = self[i] - (self[i-1] * filter);
+        };
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pe() {
+        let mut saw = Vec::<f64>::saw(32);
+        let mut sine = Vec::<f64>::sine(32);
+        saw.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
+        sine.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
+    }
+}

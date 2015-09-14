@@ -2,10 +2,10 @@ extern crate num;
 extern crate vox_box;
 
 use num::complex::Complex64;
-use std::iter::{Cycle, FromIterator};
 use vox_box::complex::{SquareRoot, ToComplexVec};
 use vox_box::*;
 use vox_box::polynomial::Polynomial;
+use vox_box::waves::Osc;
 
 #[test]
 fn complex_sqrt() {
