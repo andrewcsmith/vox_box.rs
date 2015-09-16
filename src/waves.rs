@@ -1,26 +1,30 @@
+extern crate num;
+
 use std::f64::consts::PI;
 use std::ops::*;
+use num::Float;
+use num::traits::FromPrimitive;
 
-pub trait Osc {
-    fn sine(size: usize) -> Vec<f64>;
-    fn saw(size: usize) -> Vec<f64>;
+pub trait Osc<T> {
+    fn sine(size: usize) -> Vec<T>;
+    fn saw(size: usize) -> Vec<T>;
 }
 
-impl Osc for Vec<f64> {
-    fn sine(size: usize) -> Vec<f64> {
-        let mut sine: Vec<f64> = Vec::with_capacity(size);
+impl<T: Float + FromPrimitive> Osc<T> for Vec<T> {
+    fn sine(size: usize) -> Vec<T> {
+        let mut sine: Vec<T> = Vec::with_capacity(size);
         for i in 0..size {
-            let phase: f64 = (i as f64) * 2.0 * PI / ((size) as f64);
+            let phase: T = T::from_usize(i).unwrap() * T::from_f32(2.0).unwrap() * T::from_f64(PI).unwrap() / T::from_f32(size as f32).unwrap();
             sine.push(phase.sin());
         }
         sine
     }
 
-    fn saw(size: usize) -> Vec<f64> {
-        let mut saw: Vec<f64> = Vec::with_capacity(size);
+    fn saw(size: usize) -> Vec<T> {
+        let mut saw: Vec<T> = Vec::with_capacity(size);
         for i in 0..size {
-            let phase: f64 = (i as f64) / (size) as f64;
-            saw.push((phase - 0.5) * -2.0);
+            let phase: T = T::from_f64((i as f64) / (size as f64)).unwrap();
+            saw.push((phase - T::from_f64(0.5f64).unwrap()) * T::from_f64(-2.0f64).unwrap());
         }
         saw
     }

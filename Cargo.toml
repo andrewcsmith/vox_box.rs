@@ -9,6 +9,7 @@ name = "vox_box"
 
 [dependencies]
 num = { path = "../num" }
+sample = "*"
 
 [profile.release]
 lto = true

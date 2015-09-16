@@ -1,9 +1,10 @@
-use super::complex::*;
+use complex::*;
 use std::ops::Neg;
 use std::iter::*;
-use num::traits::Zero;
+use num::traits::{Zero, One, FromPrimitive};
+use num::Float;
 
-pub trait Polynomial<T: Neg> {
+pub trait Polynomial<T> {
     fn degree(&self) -> usize;
     fn off_low(&self) -> usize;
     fn laguerre(&self, z: Complex<T>) -> Complex<T>;
@@ -11,12 +12,12 @@ pub trait Polynomial<T: Neg> {
     fn div_polynomial(&mut self, Vec<Complex<T>>) -> Result<Vec<Complex<T>>, &str>;
 }
 
-impl Polynomial<f64> for Vec<Complex<f64>> {
-    fn div_polynomial(&mut self, other: Vec<Complex<f64>>) -> Result<Vec<Complex<f64>>, &str> {
+impl<T: Float + ToComplex<T> + FromPrimitive> Polynomial<T> for Vec<Complex<T>> {
+    fn div_polynomial(&mut self, other: Vec<Complex<T>>) -> Result<Vec<Complex<T>>, &str> {
         if other.len() > 1 {
             let mut rem = self.clone();
             let ns = self.len() - 1;
-            let ds = match other.iter().rposition(|x| *x != Complex64::zero()) {
+            let ds = match other.iter().rposition(|x| *x != Complex::<T>::zero()) {
                 Some(x) => { x },
                 None => { return Err("Tried to divide by zero") }
             };
@@ -31,7 +32,7 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
             Ok(rem)
         } else {
             let divisor = other.first().unwrap();
-            if *divisor != Complex64::zero() {
+            if *divisor != Complex::<T>::zero() {
                 Ok(self.iter().map(|f| { f / divisor }).collect())
             } else {
                 Err("Tried to divide by zero")
@@ -39,7 +40,7 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
         }
     }
 
-    fn find_roots(&self) -> Result<Vec<Complex<f64>>, &str> {
+    fn find_roots(&self) -> Result<Vec<Complex<T>>, &str> {
         // Initialize coefficient highs and lows
         let coeff_high = self.degree();
         if coeff_high < 1 { return Err("Zero degree polynomial: no roots to be found.") }
@@ -48,17 +49,17 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
         let mut m = coeff_high - coeff_low;
 
         // Initialize roots to output
-        let mut z_roots: Vec<Complex<f64>> = vec![Complex64::zero(); coeff_low];
-        let mut coeffs: Vec<Complex<f64>> = Vec::<Complex<f64>>::with_capacity(coeff_high - coeff_low);
+        let mut z_roots: Vec<Complex<T>> = vec![Complex::<T>::zero(); coeff_low];
+        let mut coeffs: Vec<Complex<T>> = Vec::<Complex<T>>::with_capacity(coeff_high - coeff_low);
         for co in self[coeff_low..(coeff_high+1)].iter() {
-            coeffs.push(co.to_complex());
+            coeffs.push(*co);
         }
 
         for i in (3..(m+1)).rev() {
-            let z = coeffs.laguerre(Complex64::new(-64.0, -64.0));
+            let z = coeffs.laguerre(Complex::<T>::new(T::from_f32(-64.0f32).unwrap(), T::from_f32(-64.0f32).unwrap()));
             // Some margin of error for mostly-real roots
             z_roots.push(z);
-            match coeffs.div_polynomial(vec![z.neg(), 1f64.to_complex()]) {
+            match coeffs.div_polynomial(vec![z.neg(), Complex::<T>::one()]) {
                 Err(_) => { return Err("Failed to find roots") },
                 Ok(_) => { }
             }
@@ -67,8 +68,8 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
 
         // Solve quadradic equation
         if m == 2 {
-            let a2 = coeffs[2] * 2f64.to_complex();
-            let d = ((coeffs[1] * coeffs[1]) - (4f64.to_complex() * coeffs[2] * coeffs[0])).sqrt();
+            let a2 = coeffs[2] + coeffs[2];
+            let d = ((coeffs[1] * coeffs[1]) - (T::from_i8(4i8).unwrap().to_complex() * coeffs[2] * coeffs[0])).sqrt();
             let x = coeffs[1].neg();
             // println!("a2: {:?}, d: {:?}, x: {:?}", a2, d, x);
             z_roots.push((x + d) / a2);
@@ -82,20 +83,20 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
     }
 
     fn degree(&self) -> usize {
-        self.iter().rposition(|r| *r != Complex64::zero()).unwrap()
+        self.iter().rposition(|r| *r != Complex::<T>::zero()).unwrap()
     }
 
     fn off_low(&self) -> usize {
-        self.iter().position(|r| *r != Complex64::zero()).unwrap()
+        self.iter().position(|r| *r != Complex::<T>::zero()).unwrap()
     }
 
-    fn laguerre(&self, mut z: Complex<f64>) -> Complex<f64> {
+    fn laguerre(&self, mut z: Complex<T>) -> Complex<T> {
         let n: usize = self.len() - 1;
         // max iterations of 20
         for k in 0..20 {
             let mut alpha = self[n];
-            let mut beta = Complex64::zero();
-            let mut gamma = Complex64::zero();
+            let mut beta = Complex::<T>::zero();
+            let mut gamma = Complex::<T>::zero();
 
             for j in (0..n).rev() {
                 gamma = (z * gamma) + beta;
@@ -103,20 +104,21 @@ impl Polynomial<f64> for Vec<Complex<f64>> {
                 alpha = (z * alpha) + self[j];
             }
 
-            if alpha.norm() <= 1e-14 { return z; }
+            if alpha.norm() <= T::from_f32(1e-14f32).unwrap() { return z; }
 
-            let ca = beta.neg() / alpha;
-            let ca2 = ca * ca;
-            let cb = ca2 - ((Complex64::new(2.0, 0.0) * gamma) / alpha);
-            let c1 = (Complex64::new(((n-1) as f64), 0.0) * ((Complex64::new((n as f64), 0.0) * cb) - ca2)).sqrt();
+            let ca: Complex<T> = beta.neg() / alpha;
+            let ca2: Complex<T> = ca * ca;
+            let cb: Complex<T> = ca2 - ((T::from_f32(2f32).unwrap().to_complex() * gamma) / alpha);
+            let c1: Complex<T> = ((T::from_usize(n-1).unwrap().to_complex() *
+                                  T::from_usize(n).unwrap().to_complex() * cb) - ca2).sqrt();
 
-            let cc1: Complex64 = ca + c1;
-            let cc2: Complex64 = ca - c1;
+            let cc1: Complex<T> = ca + c1;
+            let cc2: Complex<T> = ca - c1;
 
             let cc = if cc1.norm() > cc2.norm() {
-                cc1 / (n as f64).to_complex()
+                cc1 / T::from_usize(n).unwrap().to_complex()
             } else {
-                cc2 / (n as f64).to_complex()
+                cc2 / T::from_usize(n).unwrap().to_complex()
             };
 
             let c2 = cc.inv();
@@ -135,8 +137,8 @@ mod tests {
     fn test_div_polynomial() {
         let exp_quo = vec![1.32, -0.8].to_complex_vec();
         let exp_rem = vec![-0.32].to_complex_vec();
-        let mut a = vec![1.0f64, 2.5, -2.0].to_complex_vec();
-        let b = vec![1.0f64, 2.5].to_complex_vec();
+        let mut a = vec![1f64, 2.5, -2.0].to_complex_vec();
+        let b = vec![1f64, 2.5].to_complex_vec();
         {
             let rem = a.div_polynomial(b).unwrap();
             assert_eq!(rem.len(), exp_rem.len());

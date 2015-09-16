@@ -1,6 +1,8 @@
 extern crate num;
+extern crate sample;
 use num::complex::Complex;
 use num::{Float, FromPrimitive};
+use sample::Sample;
 
 pub mod complex;
 pub mod polynomial;
