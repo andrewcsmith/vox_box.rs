@@ -3,7 +3,7 @@ extern crate num;
 use std::f64::consts::PI;
 use std::ops::*;
 use num::Float;
-use num::traits::FromPrimitive;
+use num::traits::{FromPrimitive, ToPrimitive};
 
 pub trait Osc<T> {
     fn sine(size: usize) -> Vec<T>;
@@ -30,39 +30,39 @@ impl<T: Float + FromPrimitive> Osc<T> for Vec<T> {
     }
 }
 
-pub trait Windowing {
-    fn hanning(size: usize) -> Vec<f64>;
-    fn hamming(size: usize) -> Vec<f64>;
+pub trait Windowing<T> {
+    fn hanning(size: usize) -> Vec<T>;
+    fn hamming(size: usize) -> Vec<T>;
 }
 
-impl Windowing for Vec<f64> {
-    fn hanning(size: usize) -> Vec<f64> {
-        let mut win: Vec<f64> = Vec::with_capacity(size);
+impl<T: Float + FromPrimitive> Windowing<T> for Vec<T> {
+    fn hanning(size: usize) -> Vec<T> {
+        let mut win: Vec<T> = Vec::<T>::with_capacity(size);
         for i in 0..size {
             let phase: f64 = ((i as f64) / ((size - 1) as f64)) * 2.0 * PI;
-            win.push(0.5 * (1.0 - phase.cos()));
+            win.push(T::from_f64(0.5 * (1.0 - phase.cos())).unwrap());
         }
         win
     }
     
-    fn hamming(size: usize) -> Vec<f64> {
-        let mut win: Vec<f64> = Vec::with_capacity(size);
+    fn hamming(size: usize) -> Vec<T> {
+        let mut win: Vec<T> = Vec::with_capacity(size);
         for i in 0..size {
             let phase: f64 = ((i as f64) / ((size - 1) as f64)) * 2.0 * PI;
-            win.push(0.54 - (0.46 * phase.cos()));
+            win.push(T::from_f64(0.54 - (0.46 * phase.cos())).unwrap());
         }
         win
     }
 }
 
 pub trait Filter<T> {
-    fn preemphasis(&mut self, factor: f64) -> &mut Vec<T>;
+    fn preemphasis(&mut self, factor: T) -> &mut Vec<T>;
 }
 
 /// Factor is center frequency / sample_rate
-impl<T> Filter<T> for Vec<T> where T: Mul<f64, Output=T> + Sub<T, Output=T> + Copy {
-    fn preemphasis<'a>(&'a mut self, factor: f64) -> &'a mut Vec<T> {
-        let filter = (-2.0 * PI * factor).exp();
+impl<T> Filter<T> for Vec<T> where T: Mul<T, Output=T> + Sub<T, Output=T> + Copy + ToPrimitive + FromPrimitive {
+    fn preemphasis<'a>(&'a mut self, factor: T) -> &'a mut Vec<T> {
+        let filter = T::from_f64((-2.0 * PI * factor.to_f64().unwrap()).exp()).unwrap();
         for i in (1..self.len()).rev() {
             self[i] = self[i] - (self[i-1] * filter);
         };

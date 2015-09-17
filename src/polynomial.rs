@@ -3,6 +3,7 @@ use std::ops::Neg;
 use std::iter::*;
 use num::traits::{Zero, One, FromPrimitive};
 use num::Float;
+use std::fmt::Debug;
 
 pub trait Polynomial<T> {
     fn degree(&self) -> usize;
@@ -12,7 +13,7 @@ pub trait Polynomial<T> {
     fn div_polynomial(&mut self, Vec<Complex<T>>) -> Result<Vec<Complex<T>>, &str>;
 }
 
-impl<T: Float + ToComplex<T> + FromPrimitive> Polynomial<T> for Vec<Complex<T>> {
+impl<T: Float + Debug + ToComplex<T> + FromPrimitive> Polynomial<T> for Vec<Complex<T>> {
     fn div_polynomial(&mut self, other: Vec<Complex<T>>) -> Result<Vec<Complex<T>>, &str> {
         if other.len() > 1 {
             let mut rem = self.clone();
@@ -157,6 +158,30 @@ mod tests {
     }
 
     #[test]
+    fn test_div_polynomial_f32() {
+        let exp_quo = vec![1.32f32, -0.8].to_complex_vec();
+        let exp_rem = vec![-0.32f32].to_complex_vec();
+        let mut a = vec![1f32, 2.5, -2.0].to_complex_vec();
+        let b = vec![1f32, 2.5].to_complex_vec();
+        {
+            let rem = a.div_polynomial(b).unwrap();
+            println!("rem: {:?}", rem);
+            assert_eq!(rem.len(), exp_rem.len());
+            for i in 0..exp_rem.len() {
+                let diff = rem[i] - exp_rem[i];
+                assert!(diff.re.abs() < 1e-5);
+                assert!(diff.im.abs() < 1e-5);
+            }
+        }
+        assert_eq!(a.len(), exp_quo.len());
+        for i in 0..exp_quo.len() {
+            let diff = a[i] - exp_quo[i];
+            assert!(diff.re.abs() < 1e-5);
+            assert!(diff.im.abs() < 1e-5);
+        }
+    }
+
+    #[test]
     fn test_degree() {
         let a: Vec<Complex<f64>> = vec![3.0, 2.0, 4.0, 0.0, 0.0].to_complex_vec();
         assert_eq!(a.degree(), 2);
@@ -223,6 +248,20 @@ mod tests {
     }
 
     #[test]
+    fn test_2d_complex_roots_f32() {
+        let coeffs: Vec<Complex<f32>> = vec![1.0, -2.5, 2.0].to_complex_vec();
+        let roots = coeffs.find_roots().unwrap();
+        let roots_exp = vec![Complex32::new( 0.625, -0.33071891388307 ), Complex32::new( 0.625, 0.33071891388307 )];
+        assert_eq!(roots.len(), roots_exp.len());
+        println!("Roots found: {:?}", roots);
+        for i in 0..roots_exp.len() {
+            let diff = roots[i] - roots_exp[i];
+            assert!(diff.re.abs() < 1e-12);
+            assert!(diff.im.abs() < 1e-12);
+        }
+    }
+
+    #[test]
     fn test_hi_d_roots() {
         let lpc_exp: Vec<Complex<f64>> = vec![1.0, 2.5, -2.0, -3.0].to_complex_vec();
         let roots_exp = vec![Complex64::new(-1.1409835232292, 0.0), Complex64::new(-0.35308705904629, 0.0), Complex64::new(0.82740391560878, 0.0)];
@@ -235,6 +274,30 @@ mod tests {
             assert!(diff.re.abs() < 1e-12);
             assert!(diff.im.abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn test_hi_d_roots_f32() {
+        let lpc_exp: Vec<Complex<f32>> = vec![1.0, 2.5, -2.0, -3.0].to_complex_vec();
+        let roots_exp = vec![Complex32::new(-1.1409835232292, 0.0), Complex32::new(-0.35308705904629, 0.0), Complex32::new(0.82740391560878, 0.0)];
+        let roots = lpc_exp.find_roots().unwrap();
+        println!("Roots: {:?}", roots);
+
+        assert_eq!(roots.len(), roots_exp.len());
+        for i in 0..roots_exp.len() {
+            let diff = roots[i] - roots_exp[i];
+            assert!(diff.re.abs() < 1e-6);
+            assert!(diff.im.abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_f32_roots() {
+        let lpc_coeffs: Vec<Complex<f32>> = vec![1.0, -0.99640256, 0.25383306, -0.25471634, 0.5084799, -0.0685858, -0.35042483, 0.07676613, -0.12874511, 0.11829436, 0.023972526].to_complex_vec();
+        let roots = lpc_coeffs.laguerre(Complex32::new(-64.0, -64.0));
+        println!("Roots: {:?}", roots);
+        assert!(roots.re.is_finite());
+        assert!(roots.im.is_finite());
     }
 }
 

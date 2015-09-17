@@ -7,6 +7,7 @@ use sample::Sample;
 pub mod complex;
 pub mod polynomial;
 pub mod waves;
+pub mod resample;
 
 use std::iter::Iterator;
 use std::f64::consts::PI;
