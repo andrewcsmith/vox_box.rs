@@ -1,6 +1,7 @@
 extern crate num;
 
 use std::f64::consts::PI;
+use std::iter::Iterator;
 use std::ops::*;
 use num::Float;
 use num::traits::{FromPrimitive, ToPrimitive};
@@ -30,6 +31,11 @@ impl<T: Float + FromPrimitive> Osc<T> for Vec<T> {
     }
 }
 
+pub enum Window {
+    Hanning,
+    Hamming
+}
+
 pub trait Windowing<T> {
     fn hanning(size: usize) -> Vec<T>;
     fn hamming(size: usize) -> Vec<T>;
@@ -55,11 +61,53 @@ impl<T: Float + FromPrimitive> Windowing<T> for Vec<T> {
     }
 }
 
+// Struct that iterates over each window of a block of data
+pub struct Windower<T> {
+    window: Vec<T>,
+    data: Vec<T>,
+    hop_size: usize,
+    bin_size: usize,
+    current_index: usize
+}
+
+impl<T: Float + FromPrimitive> Windower<T> {
+    pub fn new(window_type: Window, data: Vec<T>, hop_size: usize, bin_size: usize) -> Windower<T> {
+        let window = match window_type {
+            Window::Hanning => { Vec::<T>::hanning(bin_size) },
+            Window::Hamming => { Vec::<T>::hamming(bin_size) }
+        };
+        Windower { window: window, data: data, hop_size: hop_size, bin_size: bin_size, current_index: 0 }
+    }
+
+    pub fn len(&self) -> usize {
+        ((self.data.len() - self.bin_size) / self.hop_size) + 1
+    }
+}
+
+impl<T: Float + FromPrimitive> Iterator for Windower<T> {
+    type Item = Vec<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_index < (self.len() - 1) {
+            let start = self.current_index * self.hop_size;
+            let end = start + self.bin_size;
+            self.current_index += 1;
+            let mut output = Vec::<T>::with_capacity(self.bin_size);
+            for (i, v) in self.data[start..end].iter().enumerate() {
+                output.push(*v * self.window[i]);
+            }
+            Some(output)
+        } else {
+            None
+        }
+    }
+}
+
 pub trait Filter<T> {
     fn preemphasis(&mut self, factor: T) -> &mut Vec<T>;
 }
 
-/// Factor is center frequency / sample_rate
+// Factor is center frequency / sample_rate
 impl<T> Filter<T> for Vec<T> where T: Mul<T, Output=T> + Sub<T, Output=T> + Copy + ToPrimitive + FromPrimitive {
     fn preemphasis<'a>(&'a mut self, factor: T) -> &'a mut Vec<T> {
         let filter = T::from_f64((-2.0 * PI * factor.to_f64().unwrap()).exp()).unwrap();
@@ -80,5 +128,12 @@ mod tests {
         let mut sine = Vec::<f64>::sine(32);
         saw.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
         sine.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
+    }
+
+    #[test]
+    fn test_windower() {
+        let data = Vec::<f64>::sine(64);
+        let windower = Windower::new(Window::Hanning, data, 16, 32);
+        assert_eq!(windower.len(), 3);
     }
 }
