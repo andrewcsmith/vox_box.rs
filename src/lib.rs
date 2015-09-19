@@ -103,7 +103,7 @@ pub struct FormantExtractor<'a, T: 'a + Float> {
     num_formants: usize,
     frame_index: usize,
     resonances: &'a Vec<Vec<T>>,
-    estimates: Vec<T>
+    pub estimates: Vec<T>
 }
 
 impl<'a, T: 'a + Float + PartialEq> FormantExtractor<'a, T> {
@@ -124,16 +124,19 @@ impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtracto
     type Item = Vec<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.resonances.len() == self.frame_index {
+            return None;
+        }
+
         let frame = self.resonances[self.frame_index].clone();
         let mut slots: Vec<Option<T>> = self.estimates.iter()
-        .enumerate()
-        .map(|(index, estimate)| {
+        .map(|estimate| {
             let mut indices: Vec<usize> = (0..frame.len()).collect();
             indices.sort_by(|a, b| {
                 (frame[*a] - *estimate).abs().partial_cmp(&(frame[*b] - *estimate).abs()).unwrap()
             });
             let win = indices.first().unwrap().clone();
-            Some(frame[win]) // (resonance_index, resonance_freq)
+            Some(frame[win])
         }).collect();
 
         // Step 3: Remove duplicates. If the same peak p_j fills more than one slots S_i keep it
@@ -165,19 +168,36 @@ impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtracto
             // Step 4: Deal with unassigned peaks. If there are no unassigned peaks p_j, go to Step 5.
             // Otherwise, try to fill empty slots with peaks not assigned in Step 2 as follows.
             for j in 0..frame.len() {
-                let peak = Some(frame[0]);
+                let peak = Some(frame[j]);
                 if slots.contains(&peak) { continue; }
-                match slots[j] {
-                    Some(_) => { },
-                    None => { slots[j] = peak; continue; }
+                match slots.clone().get(j) {
+                    Some(&s) => {
+                        match s {
+                            Some(_) => { },
+                            None => { slots[j] = peak; continue; }
+                        }
+                    }
+                    None => { }
                 }
-                match slots[j-1] {
-                    Some(_) => { },
-                    None => { slots.swap(j, j-1); slots[j] = peak; continue; }
+                if j > 0 && j < slots.len() {
+                    match slots.clone().get(j-1) {
+                        Some(&s) => {
+                            match s {
+                                Some(_) => { },
+                                None => { slots.swap(j, j-1); slots[j] = peak; continue; }
+                            }
+                        }
+                        None => { }
+                    }
                 }
-                match slots[j+1] {
-                    Some(_) => { },
-                    None => { slots.swap(j, j+1); slots[j] = peak; continue; }
+                match slots.clone().get(j+1) {
+                    Some(&s) => {
+                        match s {
+                            Some(_) => { },
+                            None => { slots.swap(j, j+1); slots[j] = peak; continue; }
+                        }
+                    }
+                    None => { }
                 }
             }
         }
