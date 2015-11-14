@@ -29,7 +29,7 @@ fn sine_resonances() {
     auto.normalize();
     let lpc = auto.lpc(2);
     let roots = lpc.to_complex_vec().find_roots().unwrap();
-    let resonances: Vec<f64> = roots.resonances(44100);
+    let resonances: Vec<f64> = roots.resonances(44100.0);
     println!("Resonances: {:?}", resonances);
     assert!((resonances[0] - 689f64).abs() < 1f64);
 }

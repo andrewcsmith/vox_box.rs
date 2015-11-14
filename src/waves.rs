@@ -37,16 +37,42 @@ pub enum Window {
 }
 
 pub trait Windowing<T> {
+    fn window(&mut self, Window);
     fn hanning(size: usize) -> Vec<T>;
+    fn hanning_autocor(size: usize) -> Vec<T>;
     fn hamming(size: usize) -> Vec<T>;
 }
 
 impl<T: Float + FromPrimitive> Windowing<T> for Vec<T> {
+    fn window(&mut self, window_type: Window) {
+        let window = match window_type {
+            Window::Hanning => { Vec::<T>::hanning(self.len()) },
+            Window::Hamming => { Vec::<T>::hamming(self.len()) }
+        };
+
+        for i in 0..self.len() {
+            self[i] = self[i] * window[i];
+        }
+    }
+
     fn hanning(size: usize) -> Vec<T> {
         let mut win: Vec<T> = Vec::<T>::with_capacity(size);
         for i in 0..size {
             let phase: f64 = ((i as f64) / ((size - 1) as f64)) * 2.0 * PI;
             win.push(T::from_f64(0.5 * (1.0 - phase.cos())).unwrap());
+        }
+        win
+    }
+
+    fn hanning_autocor(size: usize) -> Vec<T> {
+        let mut win: Vec<T> = Vec::<T>::with_capacity(size);
+        for i in 0..size {
+            let phase = (i as f64) / (size as f64);
+            win.push(T::from_f64(
+                ((1.0 - phase) *
+                (2.0/3.0 + ((1.0/3.0) * (2.0 * PI * phase).cos()))) +
+                (0.5 / PI) * (2.0 * PI * phase).sin()).unwrap()
+            )
         }
         win
     }
@@ -74,7 +100,7 @@ impl<T: Float + FromPrimitive> Windower<T> {
     pub fn new(window_type: Window, data: Vec<T>, hop_size: usize, bin_size: usize) -> Windower<T> {
         let window = match window_type {
             Window::Hanning => { Vec::<T>::hanning(bin_size) },
-            Window::Hamming => { Vec::<T>::hamming(bin_size) }
+            Window::Hamming => { Vec::<T>::hamming(bin_size) },
         };
         Windower { window: window, data: data, hop_size: hop_size, bin_size: bin_size, current_index: 0 }
     }
@@ -121,6 +147,7 @@ impl<T> Filter<T> for Vec<T> where T: Mul<T, Output=T> + Sub<T, Output=T> + Copy
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::*;
 
     #[test]
     fn test_pe() {
@@ -135,5 +162,18 @@ mod tests {
         let data = Vec::<f64>::sine(64);
         let windower = Windower::new(Window::Hanning, data, 16, 32);
         assert_eq!(windower.len(), 3);
+    }
+
+    #[test]
+    fn test_window_autocorr() {
+        let data = Vec::<f64>::hanning_autocor(16);
+        println!("window autocorr: {:?}", data);
+        let mut manual = Vec::<f64>::hanning(16).autocorrelate(16);
+        manual.normalize();
+        println!("manual autocorr: {:?}", manual);
+        for i in 0..16 {
+            let diff = (manual[i] - data[i]).abs();
+            assert!(diff < 1e-1);
+        }
     }
 }
