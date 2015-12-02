@@ -1,4 +1,4 @@
-#![feature(box_raw, plugin)]
+#![feature(box_raw, plugin, test)]
 #![plugin(clippy)]
 
 extern crate num;
@@ -29,17 +29,17 @@ use std::fmt::Debug;
 use waves::Windowing;
 use waves::Window;
 
-use complex::{SquareRoot, ToComplexVec};
+use complex::{SquareRoot, ToComplexVec, ToComplex};
 use polynomial::Polynomial;
 
-pub trait Autocorrelates<T> {
+pub trait Autocorrelates<'a, T> {
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T>;
-    fn autocorrelate_mut<'a>(&self, n_coeffs: usize, coeffs: &'a mut Vec<T>) -> &'a mut Vec<T>;
+    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &'a mut [T]) -> &'a mut [T];
     fn normalize(&mut self);
     fn max(&self) -> T;
 }
 
-impl<T> Autocorrelates<T> for Vec<T> where T: Mul<T, Output=T> + Add<T, Output=T> + Copy + std::cmp::PartialOrd + Div<T, Output=T> {
+impl<'a, T> Autocorrelates<'a, T> for [T] where T: Mul<T, Output=T> + Add<T, Output=T> + Copy + std::cmp::PartialOrd + Div<T, Output=T> {
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T> {
         let mut coeffs: Vec<T> = Vec::with_capacity(n_coeffs);
         for lag in 0..n_coeffs {
@@ -52,7 +52,7 @@ impl<T> Autocorrelates<T> for Vec<T> where T: Mul<T, Output=T> + Add<T, Output=T
         coeffs
     }
 
-    fn autocorrelate_mut<'a>(&self, n_coeffs: usize, coeffs: &'a mut Vec<T>) -> &'a mut Vec<T> {
+    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &'a mut [T]) -> &'a mut [T] {
         for lag in 0..n_coeffs {
             let mut accum = self[0];
             for i in 1..(self.len() - (lag)) {
@@ -78,42 +78,46 @@ impl<T> Autocorrelates<T> for Vec<T> where T: Mul<T, Output=T> + Add<T, Output=T
 
     fn normalize(&mut self) {
         let max = self.max();
-        for i in (0..self.len()) {
+        for i in 0..self.len() {
             self[i] = self[i] / max;
         }
     }
 }
 
 pub trait LPC<T> {
+    fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
     fn lpc(&self, n_coeffs: usize) -> Vec<T>;
 }
 
-impl<T> LPC<T> for Vec<T> where T: Float { 
-    fn lpc(&self, n_coeffs: usize) -> Vec<T> {
-        let mut ac: Vec<T> = vec![T::zero(); n_coeffs + 1];
-        let mut kc: Vec<T> = vec![T::zero(); n_coeffs];
-        let mut tmp: Vec<T> = vec![T::zero(); n_coeffs];
-
+impl<T> LPC<T> for [T] where T: Float { 
+    fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]) {
         /* order 0 */
         let mut err = self[0];
         ac[0] = T::one();
 
         /* order >= 1 */
-        for i in (1..n_coeffs+1) {
+        for i in 1..n_coeffs+1 {
             let mut acc = self[i];
-            for j in (1..i) {
+            for j in 1..i {
                 acc = acc + (ac[j] * self[i-j]);
             }
             kc[i-1] = acc.neg() / err;
             ac[i] = kc[i-1];
-            for j in (0..n_coeffs) {
+            for j in 0..n_coeffs {
                 tmp[j] = ac[j];
             }
-            for j in (1..i) {
+            for j in 1..i {
                 ac[j] = ac[j] + (kc[i-1] * tmp[i-j]);
             }
             err = err * (T::one() - (kc[i-1] * kc[i-1]));
         };
+    }
+
+    fn lpc(&self, n_coeffs: usize) -> Vec<T> {
+        let mut ac: Vec<T> = vec![T::zero(); n_coeffs + 1];
+        let mut kc: Vec<T> = vec![T::zero(); n_coeffs];
+        let mut tmp: Vec<T> = vec![T::zero(); n_coeffs];
+        self.lpc_mut(n_coeffs, &mut ac[..], &mut kc[..], &mut tmp[..]);
         ac
     }
 }
@@ -185,7 +189,7 @@ impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtracto
         // frequency, and remove it from any other slots.
         let mut w: usize = 0;
         let mut has_unassigned: bool = false;
-        for r in (1..slots.len()) {
+        for r in 1..slots.len() {
             match slots[r] {
                 Some(v) => { 
                     if v == slots[w].unwrap() {
@@ -319,7 +323,7 @@ impl<T: Float + PartialOrd + FromPrimitive + Debug> HasPitch<T> for Vec<T> {
             Window::Hanning => { Vec::<T>::hanning_autocor(self.len()) },
             _ => { panic!() }
         };
-        let mut self_lag = self.autocorrelate(self.len());
+        let mut self_lag = self[..].autocorrelate(self.len());
         self_lag.normalize();
         for i in 0..self.len() {
             self_lag[i] = self_lag[i] / window_lag[i];
@@ -355,24 +359,45 @@ pub unsafe extern fn vox_box_autocorrelate_f32(input: *mut f32, size: size_t, n_
     let mut auto = buf.autocorrelate(n_coeffs);
     auto.normalize();
     let out = Box::into_raw(auto.into_boxed_slice());
-    // mem::forget(buf); // don't want to free this one
+    mem::forget(buf); // don't want to free this one
     out
 }
 
+/// Calculates autocorrelation without allocating any memory
+///
+/// const float* input: input buffer to calculate from
+/// size_t size:        size of input buffer
+/// size_t n_coeffs:    number of coefficients to calculate
+/// float* coeffs:      output buffer
 #[no_mangle]
-pub unsafe extern fn vox_box_autocorrelate_mut_f32(input: *mut f32, size: size_t, n_coeffs: size_t, coeffs: *mut f32) {
-    let buf = Vec::<f32>::from_raw_parts(input, size, size);
-    let mut cof = Vec::<f32>::from_raw_parts(coeffs, size, size);
+pub unsafe extern fn vox_box_autocorrelate_mut_f32(input: *const f32, size: size_t, n_coeffs: size_t, coeffs: *mut f32) {
+    let buf = std::slice::from_raw_parts(input, size);
+    let mut cof = std::slice::from_raw_parts_mut(coeffs, size);
     buf.autocorrelate_mut(n_coeffs, &mut cof);
-    mem::forget(buf); // don't free the input memory
-    mem::forget(cof); // don't free the output memory
 }
 
 #[no_mangle]
+pub unsafe extern fn vox_box_resample_mut_f32(input: *const f32, size: size_t, new_size: size_t, out: *mut f32) {
+    let buf = std::slice::from_raw_parts(input, size);
+    let mut resampled = std::slice::from_raw_parts_mut(out, new_size);
+    for i in 0..new_size {
+        let phase = (i as f32) / ((new_size-1) as f32);
+        let index = phase * ((buf.len()-1) as f32);
+        let a = buf[index.floor() as usize];
+        let b = buf[index.ceil() as usize];
+        let t = (index - index.floor()) as f32;
+        resampled[i] = a + (b - a) * t;
+    }
+}
+
+/// Normalizes the input buffer.
+///
+/// float* buffer: buffer to be normalized
+/// size_t size:   size of buffer
+#[no_mangle]
 pub unsafe extern fn vox_box_normalize_f32(buffer: *mut f32, size: size_t) {
-    let mut buf = Vec::<f32>::from_raw_parts(buffer, size, size);
+    let mut buf = std::slice::from_raw_parts_mut(buffer, size);
     buf.normalize();
-    mem::forget(buf);
 }
 
 #[no_mangle]
@@ -383,20 +408,70 @@ pub unsafe extern fn vox_box_lpc_f32(buffer: *mut f32, size: size_t, n_coeffs: s
     out
 }
 
+/// Given a set of autocorrelation coefficients, calculates the LPC coefficients using a mutable
+/// buffer. This is the preferred way to calculate LPC repeatedly with a changing buffer, as it
+/// does not allocate any memory on the heap.
+///
+/// float* coeffs: autocorrelation coefficients
+/// size_t size:   size of the autocorrelation coefficient vector
+/// size_t n_coeffs: number of coefficients to find
+/// float* out:    coefficient output buffer, c type float*. Must be at least (sizeof(float)*n_coeffs)+1.
+/// float* work:   workspace for the LPC calculation, to avoid allocs. Must be at least
+///                (sizeof(float)*n_coeffs*2).
 #[no_mangle]
-pub unsafe extern fn vox_box_resonances_f32(buffer: *mut f32, size: size_t, sample_rate: f32) -> *mut [f32] {
-    let buf = Vec::<f32>::from_raw_parts(buffer, size, size);
-    // let out = Box::into_raw(buf.to_complex_vec().find_roots().unwrap().resonances(sample_rate).into_boxed_slice());
-    // mem::forget(buf);
-    // out
-    let roots = buf.to_complex_vec().find_roots().unwrap();
-    let res: Vec<f32> = roots.resonances(sample_rate);
-    println!("Resonances! {:?}", res.len());
-    for r in &res {
-        println!("Found resonance: {:?}", r);
-    }
-    // mem::forget(buf);
+pub unsafe extern fn vox_box_lpc_mut_f32(coeffs: *const f32, size: size_t, n_coeffs: size_t, out: *mut f32, work: *mut f32) {
+    let buf = std::slice::from_raw_parts(coeffs, size);
+    let mut lpc = std::slice::from_raw_parts_mut(out, n_coeffs + 1);
+    let mut kc = std::slice::from_raw_parts_mut(work, n_coeffs);
+    let mut tmp = std::slice::from_raw_parts_mut(work.offset(n_coeffs as isize), n_coeffs);
+    buf.lpc_mut(n_coeffs, lpc, kc, tmp);
+}
+
+#[no_mangle]
+pub unsafe extern fn vox_box_resonances_f32(buffer: *mut f32, size: size_t, sample_rate: f32, count: &mut c_int) -> *mut [f32] {
+    let buf = std::slice::from_raw_parts(buffer, size);
+    let complex = buf.to_vec().to_complex_vec(); // fix this allocation
+    let res: Vec<f32> = complex.find_roots().unwrap().resonances(sample_rate);
+    *count = res.len() as c_int;
     Box::into_raw(res.into_boxed_slice())
+}
+
+/// work must be 3*size+2 for complex floats (meaning 6*size+4 of the buffer)
+#[no_mangle]
+pub unsafe extern fn vox_box_resonances_mut_f32<'a>(buffer: *const f32, size: size_t, sample_rate: f32, count: &mut c_int, work: *mut Complex<f32>, out: *mut f32) {
+    // Input buffer
+    let buf: &[f32] = std::slice::from_raw_parts(buffer, size);
+    let mut res: &mut [f32] = std::slice::from_raw_parts_mut(out, size);
+    // Mutable complex slice
+    let mut complex: &mut [Complex<f32>] = std::slice::from_raw_parts_mut(work, size); // designate memory for the complex vector
+    let mut complex_work: &'a mut [Complex<f32>] = std::slice::from_raw_parts_mut(work.offset(size as isize), size*4 + 2); // designate memory for the complex vector
+    for i in 0..size {
+        complex[i] = (&buf[i]).to_complex();
+    }
+    match complex.find_roots_mut(complex_work) {
+        Ok(_) => { },
+        Err(x) => { println!("Problem: {:?}", x) }
+    };
+    let freq_mul: f32 = (sample_rate as f64 / (PI * 2f64)) as f32;
+    for i in 0..size {
+        if complex[i].im >= 0f32 {
+            let c = complex[i].im.atan2(complex[i].re) * freq_mul;
+            if c > 1f32 {
+                res[*count as usize] = c;
+                *count = *count + 1;
+            }
+        } 
+    }
+    let rpos = res.iter().rposition(|v| *v != 0f32).unwrap_or(0);
+    res[0..(rpos+1)].sort_by(|a, b| (a.partial_cmp(b)).unwrap_or(Equal));
+
+    // let res: Vec<f32> = complex.find_roots().unwrap().resonances(sample_rate);
+    // *count = res.len() as c_int;
+    // let mut resonances = std::slice::from_raw_parts_mut(out, size);
+    // for i in 0..res.len() {
+    //     resonances[i] = res[i];
+    // }
+    // mem::forget(resonances);
 }
 
 #[no_mangle]
@@ -500,7 +575,7 @@ mod tests {
         sortable.sort_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
         let global_peak = sortable[0];
         let local_peak = global_peak.clone();
-        let mut auto = vector.autocorrelate(512);
+        let mut auto = vector[..].autocorrelate(512);
         auto.normalize();
         let maxima = auto.local_maxima();
         assert_eq!(maxima.len(), 95);

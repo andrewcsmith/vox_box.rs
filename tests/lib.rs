@@ -28,7 +28,9 @@ fn sine_resonances() {
     let mut auto = wave.autocorrelate(32);
     auto.normalize();
     let lpc = auto.lpc(2);
+    println!("LPC: {:?}", &lpc);
     let roots = lpc.to_complex_vec().find_roots().unwrap();
+    println!("Roots: {:?}", &roots);
     let resonances: Vec<f64> = roots.resonances(44100.0);
     println!("Resonances: {:?}", resonances);
     assert!((resonances[0] - 689f64).abs() < 1f64);
