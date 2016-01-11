@@ -10,10 +10,10 @@ doctest = false
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-num = "*"
-sample = "*"
-libc = "*"
-clippy = "*"
+num = "0.1.27"
+sample = "0.1.3"
+libc = "0.2.2"
+clippy = "0.0.23"
 
 [profile.release]
 lto = true
