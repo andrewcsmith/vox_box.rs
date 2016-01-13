@@ -31,7 +31,8 @@ fn sine_resonances() {
     println!("LPC: {:?}", &lpc);
     let roots = lpc.to_complex_vec().find_roots().unwrap();
     println!("Roots: {:?}", &roots);
-    let resonances: Vec<f64> = roots.resonances(44100.0);
+    let resonances: Vec<Resonance<f64>> = roots.to_resonance(44100.0);
     println!("Resonances: {:?}", resonances);
-    assert!((resonances[0] - 689f64).abs() < 1f64);
+    assert!((resonances[0].frequency - 689f64).abs() < 1f64);
+    assert!((resonances[0].amplitude - 1.0019589).abs() < 1.0e-6);
 }

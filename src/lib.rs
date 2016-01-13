@@ -122,20 +122,37 @@ impl<T> LPC<T> for [T] where T: Float {
     }
 }
 
-pub trait Resonance<T> {
-    fn resonances(&self, sample_rate: T) -> Vec<T>;
+#[derive(Clone, Debug)]
+pub struct Resonance<T> {
+    pub frequency: T,
+    pub amplitude: T
 }
 
-impl<T> Resonance<T> for Vec<Complex<T>> where T: Float + FromPrimitive {
-    // Give it some roots, it'll find the resonances
-    fn resonances(&self, sample_rate: T) -> Vec<T> {
+impl<T: Float + FromPrimitive> Resonance<T> {
+    pub fn from_root(root: &Complex<T>, sample_rate: T) -> Option<Resonance<T>> {
         let freq_mul: T = T::from_f64(sample_rate.to_f64().unwrap() / (PI * 2f64)).unwrap();
-        let mut res: Vec<T> = self.iter()
-            .filter(|v| v.im >= T::zero())
-            .map(|v| v.im.atan2(v.re) * freq_mul)
-            .filter(|v| *v > T::one())
-            .collect();
-        res.sort_by(|a, b| (a.partial_cmp(b)).unwrap());
+        if root.im >= T::zero() {
+            let res = Resonance::<T> { 
+                frequency: root.im.atan2(root.re) * freq_mul,
+                amplitude: (root.im.powi(2) + root.re.powi(2)).sqrt()
+            };
+            if res.frequency > T::one() {
+                Some(res)
+            } else { None }
+        } else { None }
+    }
+}
+
+pub trait ToResonance<T> {
+    fn to_resonance(&self, sample_rate: T) -> Vec<Resonance<T>>;
+}
+
+impl<T> ToResonance<T> for Vec<Complex<T>> where T: Float + FromPrimitive {
+    // Give it some roots, it'll find the resonances
+    fn to_resonance(&self, sample_rate: T) -> Vec<Resonance<T>> {
+        let mut res: Vec<Resonance<T>> = self.iter()
+            .filter_map(|r| Resonance::<T>::from_root(r, sample_rate)).collect();
+        res.sort_by(|a, b| (a.frequency.partial_cmp(&b.frequency)).unwrap());
         res
     }
 }
@@ -431,7 +448,7 @@ pub unsafe extern fn vox_box_lpc_mut_f32(coeffs: *const f32, size: size_t, n_coe
 pub unsafe extern fn vox_box_resonances_f32(buffer: *mut f32, size: size_t, sample_rate: f32, count: &mut c_int) -> *mut [f32] {
     let buf = std::slice::from_raw_parts(buffer, size);
     let complex = buf.to_vec().to_complex_vec(); // fix this allocation
-    let res: Vec<f32> = complex.find_roots().unwrap().resonances(sample_rate);
+    let res: Vec<f32> = complex.find_roots().unwrap().to_resonance(sample_rate).iter().map(move |r| r.frequency).collect();
     *count = res.len() as c_int;
     Box::into_raw(res.into_boxed_slice())
 }
@@ -499,9 +516,10 @@ mod tests {
     #[test]
     fn test_resonances() {
         let roots = vec![Complex64::new( -0.5, 0.86602540378444 ), Complex64::new( -0.5, -0.86602540378444 )];
-        let res = roots.resonances(300f64);
+        let res = roots.to_resonance(300f64);
         println!("Resonances: {:?}", res);
-        assert!((res[0] - 100.0).abs() < 1e-8);
+        assert!((res[0].frequency - 100.0).abs() < 1e-8);
+        assert!((res[0].amplitude - 1.0).abs() < 1e-8);
     }
 
     #[test]
