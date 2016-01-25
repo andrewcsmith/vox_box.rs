@@ -11,9 +11,10 @@ crate-type = ["dylib", "rlib"]
 
 [dependencies]
 num = "0.1"
+rand = "0.3"
 sample = "0.2"
 libc = "0.2"
-clippy = "0.0"
+rustfft = "1.0"
 
 [profile.release]
 lto = true
