@@ -36,11 +36,11 @@ impl ToComplex<f64> for f64 {
 }
 
 pub trait ToComplexVec<T> {
-    fn to_complex_vec(self) -> Vec<Complex<T>>;
+    fn to_complex_vec(&self) -> Vec<Complex<T>>;
 }
 
 impl<T: ToComplex<T> + Copy> ToComplexVec<T> for Vec<T> {
-    fn to_complex_vec(self) -> Vec<Complex<T>> {
+    fn to_complex_vec(&self) -> Vec<Complex<T>> {
         self.iter().map(|v| v.to_complex()).collect()
     }
 }
