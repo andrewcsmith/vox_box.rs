@@ -1,7 +1,7 @@
 #![feature(box_raw, plugin, test)]
-#![plugin(clippy)]
 
 extern crate num;
+extern crate rand;
 extern crate sample;
 extern crate libc;
 
@@ -17,11 +17,13 @@ pub mod complex;
 pub mod polynomial;
 pub mod waves;
 pub mod resample;
+pub mod mfcc;
 
 // Use std
 use std::iter::Iterator;
 use std::f64::consts::PI;
 use std::ops::*;
+use std::collections::VecDeque;
 use std::cmp::Ordering::{Less, Equal, Greater};
 use std::cmp::PartialOrd;
 use std::fmt::Debug;
@@ -40,6 +42,51 @@ pub trait Autocorrelates<'a, T> {
 }
 
 impl<'a, T> Autocorrelates<'a, T> for [T] where T: Mul<T, Output=T> + Add<T, Output=T> + Copy + std::cmp::PartialOrd + Div<T, Output=T> {
+    fn autocorrelate(&self, n_coeffs: usize) -> Vec<T> {
+        let mut coeffs: Vec<T> = Vec::with_capacity(n_coeffs);
+        for lag in 0..n_coeffs {
+            let mut accum = self[0];
+            for i in 1..(self.len() - (lag)) {
+                accum = accum + (self[i] * self[(i + lag) as usize]);
+            }
+            coeffs.push(accum);
+        }
+        coeffs
+    }
+
+    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &'a mut [T]) -> &'a mut [T] {
+        for lag in 0..n_coeffs {
+            let mut accum = self[0];
+            for i in 1..(self.len() - (lag)) {
+                accum = accum + (self[i] * self[(i + lag) as usize]);
+            }
+            coeffs[lag] = accum;
+        }
+        coeffs
+    }
+
+    fn max(&self) -> T {
+        let mut max = self[0];
+        for i in 0..self.len() {
+            let elem = self[i];
+            max = match elem.partial_cmp(&max).unwrap_or(Equal) {
+                Less => { max }
+                Equal => { max }
+                Greater => { elem }
+            };
+        }
+        max
+    }
+
+    fn normalize(&mut self) {
+        let max = self.max();
+        for i in 0..self.len() {
+            self[i] = self[i] / max;
+        }
+    }
+}
+
+impl<'a, T> Autocorrelates<'a, T> for VecDeque<T> where T: Mul<T, Output=T> + Add<T, Output=T> + Copy + std::cmp::PartialOrd + Div<T, Output=T> {
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T> {
         let mut coeffs: Vec<T> = Vec::with_capacity(n_coeffs);
         for lag in 0..n_coeffs {
