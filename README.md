@@ -7,6 +7,7 @@ A tool to let you hack away at voice audio recordings in Rust.
 * Resampler
 * Autocorrelation
 * Hanning/Hamming windowing
+* MFCC calculation
 * Sine and Saw wave generators
 * Resonance finder
 * Formant tracker (McCandless algorithm, from Praat)
