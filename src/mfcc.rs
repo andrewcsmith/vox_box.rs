@@ -58,7 +58,7 @@ impl<T: Debug + Float + ToPrimitive + FromPrimitive + ToComplex<T> + Zero + Sign
                 let multiplier = i as f64 / down as f64;
                 acc + spectrum[bin].norm().to_f64().unwrap().abs() * multiplier
             });
-            T::from_f64((up_sum + down_sum).log10()).unwrap()
+            T::from_f64((up_sum + down_sum).log10()).unwrap_or(T::from_f32(1.0e-10).unwrap())
         }).collect();
 
         dct(&energies[..])

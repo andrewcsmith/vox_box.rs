@@ -15,6 +15,13 @@ rand = "0.3"
 sample = "0.2"
 libc = "0.2"
 rustfft = "1.0"
+rustc-serialize = "0.3"
+
+[dev-dependencies]
+docopt = "0.6"
+nalgebra = "0.5.1"
+audio = { path = "../audio" }
+byteorder = "*"
 
 [profile.release]
 lto = true
