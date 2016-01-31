@@ -4,20 +4,24 @@ A tool to let you hack away at voice audio recordings in Rust.
 
 ## What's included
 
-* Resampler
-* Autocorrelation
-* Hanning/Hamming windowing
-* MFCC calculation
-* Sine and Saw wave generators
-* Resonance finder
-* Formant tracker (McCandless algorithm, from Praat)
-* Pitch tracker (Boersma autocorrelation pitch tracker, from Praat)
+The following taxonomy is more for my reorganization work than anything else.
 
-### Plus some bonus numerical stuff that really belongs in another crate
-
-* Complex square roots
-* Polynomial division
-* Laguerre root finding
+* mod waves
+    * Resampler
+    * Sine and Saw wave generators
+    * Windower (Hanning / Hamming)
+    * Filter preemphasis
+* mod periodic
+    * Autocorrelation calculation
+    * Pitch path finder (Boersma tracker, from Praat)
+* mod spectrum
+    * Mel-Frequency Cepstral Coefficient (MFCC) calculation
+    * Linear Predictive Coding (LPC) coefficient calculation
+    * Resonance calculation
+    * Formant path finder (McCandless algorithm, from Praat)
+* mod polynomial
+    * Polynomial division
+    * Laguerre root finding
 
 ## Why is it broken?
 
