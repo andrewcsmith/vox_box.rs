@@ -3,6 +3,8 @@ extern crate num;
 use std::f64::consts::PI;
 use std::iter::{Iterator, ExactSizeIterator};
 use std::ops::*;
+use std::cmp::{PartialOrd};
+use std::cmp::Ordering::*;
 use num::Float;
 use num::traits::{FromPrimitive, ToPrimitive, Zero};
 use std::marker::PhantomData;
@@ -51,6 +53,38 @@ impl<T: Float + FromPrimitive> Resample<T> for Vec<T> {
     }
 }
 
+pub trait Max<T> {
+    fn max(&self) -> T;
+}
+
+impl<T: Copy + PartialOrd<T>> Max<T> for [T] {
+    fn max(&self) -> T {
+        let mut max = self[0];
+        for i in 0..self.len() {
+            let elem = self[i];
+            max = match elem.partial_cmp(&max).unwrap_or(Equal) {
+                Less => { max }
+                Equal => { max }
+                Greater => { elem }
+            };
+        }
+        max
+    }
+}
+
+pub trait Normalize<T> {
+    fn normalize(&mut self);
+}
+
+impl<T: Float> Normalize<T> for [T] {
+    fn normalize(&mut self) {
+        let max = self.max();
+        for i in 0..self.len() {
+            self[i] = self[i] / max;
+        }
+    }
+}
+
 /// Enum to select the type of window desired
 ///
 /// { Hanning, Hamming }
@@ -65,7 +99,16 @@ pub enum WindowType {
 ///
 /// window: should mutate self without allocating an additional window
 pub trait Windowable<T> {
-    fn windower(&mut self, WindowType);
+    fn window(&mut self, WindowType);
+}
+
+impl<T: Float + FromPrimitive> Windowable<T> for [T] {
+    fn window(&mut self, wtype: WindowType) {
+        let len = self.len();
+        for (v, w) in self.iter_mut().zip(Window::<T>::new(wtype, len)) {
+            *v = *v * w;
+        }
+    }
 }
 
 pub struct Window<T> {
@@ -88,18 +131,20 @@ impl<T> Window<T> {
 
 impl<T: Zero + Float + FromPrimitive> Window<T> {
     fn val_at(&self, idx: usize) -> T {
-        let phase: f64 = (idx as f64 / (self.len as f64 - 1.)) * 2.0 * PI;
         match self.window_type {
             WindowType::Hanning => {
+                let phase: f64 = (idx as f64 / (self.len as f64 - 1.)) * 2.0 * PI;
                 T::from_f64(0.5 * (1. - phase.cos())).unwrap_or(T::zero())
             },
             WindowType::HanningAutocorrelation => {
+                let phase: f64 = (idx as f64 / (self.len as f64));
                 T::from_f64(
                     ((1.0 - phase) *
                     (2.0/3.0 + ((1.0/3.0) * (2.0 * PI * phase).cos()))) +
                     (0.5 / PI) * (2.0 * PI * phase).sin()).unwrap_or(T::zero())
             },
             WindowType::Hamming => {
+                let phase: f64 = (idx as f64 / (self.len as f64 - 1.)) * 2.0 * PI;
                 T::from_f64(0.54 - (0.46 * phase.cos())).unwrap_or(T::zero())
             }
         }

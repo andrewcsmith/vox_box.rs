@@ -35,8 +35,6 @@ use polynomial::Polynomial;
 pub trait Autocorrelates<'a, T> {
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T>;
     fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &'a mut [T]) -> &'a mut [T];
-    fn normalize(&mut self);
-    fn max(&self) -> T;
 }
 
 impl<'a, T> Autocorrelates<'a, T> for [T] where T: Mul<T, Output=T> + Add<T, Output=T> + Copy + std::cmp::PartialOrd + Div<T, Output=T> {
@@ -62,26 +60,6 @@ impl<'a, T> Autocorrelates<'a, T> for [T] where T: Mul<T, Output=T> + Add<T, Out
         }
         coeffs
     }
-
-    fn max(&self) -> T {
-        let mut max = self[0];
-        for i in 0..self.len() {
-            let elem = self[i];
-            max = match elem.partial_cmp(&max).unwrap_or(Equal) {
-                Less => { max }
-                Equal => { max }
-                Greater => { elem }
-            };
-        }
-        max
-    }
-
-    fn normalize(&mut self) {
-        let max = self.max();
-        for i in 0..self.len() {
-            self[i] = self[i] / max;
-        }
-    }
 }
 
 impl<'a, T> Autocorrelates<'a, T> for VecDeque<T> where T: Mul<T, Output=T> + Add<T, Output=T> + Copy + std::cmp::PartialOrd + Div<T, Output=T> {
@@ -106,26 +84,6 @@ impl<'a, T> Autocorrelates<'a, T> for VecDeque<T> where T: Mul<T, Output=T> + Ad
             coeffs[lag] = accum;
         }
         coeffs
-    }
-
-    fn max(&self) -> T {
-        let mut max = self[0];
-        for i in 0..self.len() {
-            let elem = self[i];
-            max = match elem.partial_cmp(&max).unwrap_or(Equal) {
-                Less => { max }
-                Equal => { max }
-                Greater => { elem }
-            };
-        }
-        max
-    }
-
-    fn normalize(&mut self) {
-        let max = self.max();
-        for i in 0..self.len() {
-            self[i] = self[i] / max;
-        }
     }
 }
 

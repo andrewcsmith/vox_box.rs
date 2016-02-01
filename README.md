@@ -11,6 +11,8 @@ The following taxonomy is more for my reorganization work than anything else.
     * Sine and Saw wave generators
     * Windower (Hanning / Hamming)
     * Filter preemphasis
+    * Normalization
+    * Max value finding
 * mod periodic
     * Autocorrelation calculation
     * Pitch path finder (Boersma tracker, from Praat)

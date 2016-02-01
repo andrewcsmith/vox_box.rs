@@ -5,7 +5,7 @@ use num::complex::Complex64;
 use vox_box::complex::{SquareRoot, ToComplexVec};
 use vox_box::*;
 use vox_box::polynomial::Polynomial;
-use vox_box::waves::Osc;
+use vox_box::waves::*;
 
 #[test]
 fn complex_sqrt() {
