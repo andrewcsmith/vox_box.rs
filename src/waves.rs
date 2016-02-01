@@ -137,7 +137,7 @@ impl<T: Zero + Float + FromPrimitive> Window<T> {
                 T::from_f64(0.5 * (1. - phase.cos())).unwrap_or(T::zero())
             },
             WindowType::HanningAutocorrelation => {
-                let phase: f64 = (idx as f64 / (self.len as f64));
+                let phase: f64 = idx as f64 / (self.len as f64);
                 T::from_f64(
                     ((1.0 - phase) *
                     (2.0/3.0 + ((1.0/3.0) * (2.0 * PI * phase).cos()))) +
@@ -245,6 +245,7 @@ impl<T> Filter<T> for [T] where T: Mul<T, Output=T> + Sub<T, Output=T> + Copy + 
 mod tests {
     use super::*;
     use super::super::*;
+    use super::super::periodic::*;
 
     #[test]
     fn test_pe() {
