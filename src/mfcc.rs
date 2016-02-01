@@ -69,7 +69,7 @@ impl<T: Debug + Float + ToPrimitive + FromPrimitive + ToComplex<T> + Zero + Sign
 mod test {
     use super::*;
     use rand::{thread_rng, Rng};
-    use waves::{Filter, Windowing, Window};
+    use waves::*;
 
     #[test]
     fn test_hz_to_mel() {
@@ -85,7 +85,7 @@ mod test {
     fn test_mfcc() {
         let mut rng = thread_rng();
         let mut vec: Vec<f64> = (0..super::FFT_SIZE).map(|_| rng.gen_range::<f64>(-1., 1.)).collect();
-        vec.preemphasis(0.1f64 * 22_050.).window(Window::Hanning);
+        vec.preemphasis(0.1f64 * 22_050.).window(WindowType::Hanning);
         let mfccs = vec.mfcc(26, (133., 6855.), 22_050.);
         println!("mfccs: {:?}", mfccs);
     }

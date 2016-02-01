@@ -16,7 +16,6 @@ use std::mem;
 pub mod complex;
 pub mod polynomial;
 pub mod waves;
-pub mod resample;
 pub mod mfcc;
 
 // Use std
@@ -28,8 +27,7 @@ use std::cmp::Ordering::{Less, Equal, Greater};
 use std::cmp::PartialOrd;
 use std::fmt::Debug;
 
-use waves::Windowing;
-use waves::Window;
+use waves::*;
 
 use complex::{SquareRoot, ToComplexVec, ToComplex};
 use polynomial::Polynomial;
@@ -375,16 +373,16 @@ impl HasRMS<f64> for Vec<f64> {
 }
 
 pub trait HasPitch<T> {
-    fn pitch(&self, sample_rate: T, threshold: T, silence_threshold: T, local_peak: T, global_peak: T, octave_cost: T, min: T, max: T, window_type: Window) -> Vec<Pitch<T>>;
+    fn pitch(&self, sample_rate: T, threshold: T, silence_threshold: T, local_peak: T, global_peak: T, octave_cost: T, min: T, max: T, window_type: WindowType) -> Vec<Pitch<T>>;
     fn local_maxima(&self) -> Vec<(usize, T)>;
 }
 
 impl<T: Float + PartialOrd + FromPrimitive + Debug> HasPitch<T> for Vec<T> {
     // Assumes that it's being passed a windowed signal
     // Returns (frequency, strength)
-    fn pitch(&self, sample_rate: T, threshold: T, silence_threshold: T, local_peak: T, global_peak: T, octave_cost: T, min: T, max: T, window_type: Window) -> Vec<Pitch<T>> {
+    fn pitch(&self, sample_rate: T, threshold: T, silence_threshold: T, local_peak: T, global_peak: T, octave_cost: T, min: T, max: T, window_type: WindowType) -> Vec<Pitch<T>> {
         let window_lag: Vec<T> = match window_type {
-            Window::Hanning => { Vec::<T>::hanning_autocor(self.len()) },
+            WindowType::Hanning => { Window::<T>::new(WindowType::HanningAutocorrelation, self.len()).collect() },
             _ => { panic!() }
         };
         let mut self_lag = self[..].autocorrelate(self.len());
@@ -644,8 +642,8 @@ mod tests {
         auto.normalize();
         let maxima = auto.local_maxima();
         assert_eq!(maxima.len(), 95);
-        vector.window(Window::Hanning);
-        let pitch = vector.pitch(512f64, 0.2f64, 0.05, local_peak, global_peak, 0.01, 10f64, 100f64, Window::Hanning);
+        vector.window(WindowType::Hanning);
+        let pitch = vector.pitch(512f64, 0.2f64, 0.05, local_peak, global_peak, 0.01, 10f64, 100f64, WindowType::Hanning);
         assert_eq!(pitch[0].frequency, 16f64);
     }
 
