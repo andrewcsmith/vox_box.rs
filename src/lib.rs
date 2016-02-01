@@ -1,4 +1,4 @@
-#![feature(box_raw, plugin, test)]
+#![feature(plugin, test)]
 
 extern crate num;
 extern crate rand;
@@ -591,7 +591,7 @@ mod tests {
         };
 
         let mut vector = Vec::<f64>::with_capacity(512);
-        for i in 0..4 { vector.extend(signal.iter().cloned()); }
+        for _ in 0..4 { vector.extend(signal.iter().cloned()); }
         let mut sortable = vector.clone();
         sortable.sort_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
         let global_peak = sortable[0];
@@ -600,7 +600,10 @@ mod tests {
         auto.normalize();
         let maxima = auto.local_maxima();
         assert_eq!(maxima.len(), 95);
-        vector.window(WindowType::Hanning);
+        let len = vector.len();
+        for (v, w) in vector.iter_mut().zip(Window::<f64>::new(WindowType::Hanning, len)) {
+            *v *= w;
+        }
         let pitch = vector.pitch(512f64, 0.2f64, 0.05, local_peak, global_peak, 0.01, 10f64, 100f64, WindowType::Hanning);
         assert_eq!(pitch[0].frequency, 16f64);
     }

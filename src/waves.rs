@@ -257,17 +257,18 @@ mod tests {
     #[test]
     fn test_windower() {
         let data = Vec::<f64>::sine(64);
-        let windower = Windower::new(Window::Hanning, data, 16, 32);
+        let windower = Windower::new(WindowType::Hanning, &data[..], 16, 32);
         assert_eq!(windower.len(), 3);
     }
 
     #[test]
     fn test_window_autocorr() {
-        let data = Vec::<f64>::hanning_autocor(16);
-        println!("window autocorr: {:?}", data);
-        let mut manual = Vec::<f64>::hanning(16).autocorrelate(16);
+        let data: Vec<f64> = Window::<f64>::new(WindowType::HanningAutocorrelation, 16).collect();
+        println!("window autocorr: {:?}", &data);
+        let mut manual: Vec<f64> = Window::<f64>::new(WindowType::Hanning, 16).collect();
+        manual = manual.autocorrelate(16);
         manual.normalize();
-        println!("manual autocorr: {:?}", manual);
+        println!("manual autocorr: {:?}", &manual);
         for i in 0..16 {
             let diff = (manual[i] - data[i]).abs();
             assert!(diff < 1e-1);
