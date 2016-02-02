@@ -96,14 +96,14 @@ pub struct FormantFrame<T: Float> {
 pub struct FormantExtractor<'a, T: 'a + Float> {
     num_formants: usize,
     frame_index: usize,
-    resonances: &'a Vec<Vec<T>>,
+    resonances: &'a Vec<Vec<Resonance<T>>>,
     pub estimates: Vec<T>
 }
 
 impl<'a, T: 'a + Float + PartialEq> FormantExtractor<'a, T> {
     pub fn new(
         num_formants: usize, 
-        resonances: &'a Vec<Vec<T>>, 
+        resonances: &'a Vec<Vec<Resonance<T>>>, 
         starting_estimates: Vec<T>) -> Self {
         FormantExtractor { 
             num_formants: num_formants, 
@@ -127,10 +127,10 @@ impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtracto
         .map(|estimate| {
             let mut indices: Vec<usize> = (0..frame.len()).collect();
             indices.sort_by(|a, b| {
-                (frame[*a] - *estimate).abs().partial_cmp(&(frame[*b] - *estimate).abs()).unwrap()
+                (frame[*a].frequency - *estimate).abs().partial_cmp(&(frame[*b].frequency - *estimate).abs()).unwrap()
             });
             let win = indices.first().unwrap().clone();
-            Some(frame[win])
+            Some(frame[win].frequency)
         }).collect();
 
         // Step 3: Remove duplicates. If the same peak p_j fills more than one slots S_i keep it
@@ -162,7 +162,7 @@ impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtracto
             // Step 4: Deal with unassigned peaks. If there are no unassigned peaks p_j, go to Step 5.
             // Otherwise, try to fill empty slots with peaks not assigned in Step 2 as follows.
             for j in 0..frame.len() {
-                let peak = Some(frame[j]);
+                let peak = Some(frame[j].frequency);
                 if slots.contains(&peak) { continue; }
                 match slots.clone().get(j) {
                     Some(&s) => {
@@ -270,6 +270,63 @@ mod test {
     use super::*;
     use rand::{thread_rng, Rng};
     use waves::*;
+    use periodic::*;
+    use num::Complex;
+
+    #[test]
+    fn test_resonances() {
+        let roots = vec![Complex::<f64>::new( -0.5, 0.86602540378444 ), Complex::<f64>::new( -0.5, -0.86602540378444 )];
+        let res = roots.to_resonance(300f64);
+        println!("Resonances: {:?}", res);
+        assert!((res[0].frequency - 100.0).abs() < 1e-8);
+        assert!((res[0].amplitude - 1.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn test_lpc() {
+        let sine = Vec::<f64>::sine(8);
+        let mut auto = sine.autocorrelate(8);
+        // assert_eq!(maxima[3], (128, 1.0));
+        auto.normalize();       
+        let auto_exp = vec![1.0, 0.7071, 0.1250, -0.3536, -0.5, -0.3536, -0.1250, 0.0];
+        // Rust output:
+        let lpc_exp = vec![1.0, -1.3122, 0.8660, -0.0875, -0.0103];
+        let lpc = auto.lpc(4);
+        // println!("LPC coeffs: {:?}", &lpc);
+        for (a, b) in auto.iter().zip(auto_exp.iter()) {
+            assert![(a - b).abs() < 0.0001];
+        }
+        for (a, b) in lpc.iter().zip(lpc_exp.iter()) {
+            assert![(a - b).abs() < 0.0001];
+        }
+    }
+
+    #[test]
+    fn test_formant_extractor() {
+        let resonances: Vec<Vec<Resonance<f64>>> = vec![
+            vec![100.0, 150.0, 200.0, 240.0, 300.0], 
+            vec![110.0, 180.0, 210.0, 230.0, 310.0],
+            vec![230.0, 270.0, 290.0, 350.0, 360.0]
+        ].iter().map(|z| z.iter().map(|r| Resonance::<f64> { frequency: *r, amplitude: 1. }).collect()).collect();
+        let mut extractor = FormantExtractor::new( 3, &resonances, vec![140.0, 230.0, 320.0]);
+        // First cycle has initial guesses
+        match extractor.next() {
+            Some(r) => { assert_eq!(r, vec![150.0, 240.0, 300.0]) },
+            None => { panic!() }
+        };
+
+        // Second cycle should be different
+        match extractor.next() {
+            Some(r) => { assert_eq!(r, vec![180.0, 230.0, 310.0]) },
+            None => { panic!() }
+        };
+
+        // Third cycle should have removed duplicates and shifted to fill all slots
+        match extractor.next() {
+            Some(r) => { assert_eq!(r, vec![230.0, 270.0, 290.0]) },
+            None => { panic!() }
+        };
+    }
 
     #[test]
     fn test_hz_to_mel() {

@@ -13,7 +13,6 @@ use libc::{size_t, c_int, c_void};
 use std::mem;
 
 // Declare local mods
-pub mod complex;
 pub mod polynomial;
 pub mod periodic;
 pub mod waves;
@@ -31,11 +30,17 @@ use std::marker::Sized;
 
 use waves::*;
 
-use complex::{SquareRoot, ToComplexVec, ToComplex};
 use polynomial::Polynomial;
 use periodic::*;
 use spectrum::*;
 
+/// Calculates autocorrelation and will allocate memory
+///
+/// const float* input: input buffer to calculate from
+/// size_t size:        size of input buffer
+/// size_t n_coeffs:    number of coefficients to calculate
+///
+/// Returns a pointer to *float of length n_coeffs
 #[no_mangle]
 pub unsafe extern fn vox_box_autocorrelate_f32(input: *mut f32, size: size_t, n_coeffs: size_t) -> *mut [f32] {
     let buf = Vec::<f32>::from_raw_parts(input, size, size);
@@ -113,7 +118,7 @@ pub unsafe extern fn vox_box_lpc_mut_f32(coeffs: *const f32, size: size_t, n_coe
 #[no_mangle]
 pub unsafe extern fn vox_box_resonances_f32(buffer: *mut f32, size: size_t, sample_rate: f32, count: &mut c_int) -> *mut [f32] {
     let buf = std::slice::from_raw_parts(buffer, size);
-    let complex = buf.to_vec().to_complex_vec(); // fix this allocation
+    let complex: Vec<Complex<f32>> = buf.iter().map(|v| Complex::<f32>::from(v)).collect(); 
     let res: Vec<f32> = complex.find_roots().unwrap().to_resonance(sample_rate).iter().map(move |r| r.frequency).collect();
     *count = res.len() as c_int;
     Box::into_raw(res.into_boxed_slice())
@@ -129,7 +134,7 @@ pub unsafe extern fn vox_box_resonances_mut_f32<'a>(buffer: *const f32, size: si
     let mut complex: &mut [Complex<f32>] = std::slice::from_raw_parts_mut(work, size); // designate memory for the complex vector
     let mut complex_work: &'a mut [Complex<f32>] = std::slice::from_raw_parts_mut(work.offset(size as isize), size*4 + 2); // designate memory for the complex vector
     for i in 0..size {
-        complex[i] = (&buf[i]).to_complex();
+        complex[i] = Complex::<f32>::from(&buf[i]);
     }
     match complex.find_roots_mut(complex_work) {
         Ok(_) => { },
@@ -170,78 +175,5 @@ pub unsafe extern fn vox_box_free(buffer: *mut [f32]) {
 #[no_mangle]
 pub unsafe extern fn vox_box_print_f32(buffer: *mut f32) {
     println!("Printing buffer... {:?}", buffer);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*; 
-    use num::complex::Complex64;
-    use std::f64::consts::PI;
-    use super::waves::*;
-    use super::periodic::*;
-    use super::spectrum::*;
-
-    #[test]
-    fn test_resonances() {
-        let roots = vec![Complex64::new( -0.5, 0.86602540378444 ), Complex64::new( -0.5, -0.86602540378444 )];
-        let res = roots.to_resonance(300f64);
-        println!("Resonances: {:?}", res);
-        assert!((res[0].frequency - 100.0).abs() < 1e-8);
-        assert!((res[0].amplitude - 1.0).abs() < 1e-8);
-    }
-
-    #[test]
-    fn test_lpc() {
-        let sine = Vec::<f64>::sine(8);
-        let mut auto = sine.autocorrelate(8);
-        // assert_eq!(maxima[3], (128, 1.0));
-        auto.normalize();       
-        let auto_exp = vec![1.0, 0.7071, 0.1250, -0.3536, -0.5, -0.3536, -0.1250, 0.0];
-        // Rust output:
-        let lpc_exp = vec![1.0, -1.3122, 0.8660, -0.0875, -0.0103];
-        let lpc = auto.lpc(4);
-        // println!("LPC coeffs: {:?}", &lpc);
-        for (a, b) in auto.iter().zip(auto_exp.iter()) {
-            assert![(a - b).abs() < 0.0001];
-        }
-        for (a, b) in lpc.iter().zip(lpc_exp.iter()) {
-            assert![(a - b).abs() < 0.0001];
-        }
-    }
-
-    #[test]
-    fn test_formant_extractor() {
-        let resonances = vec![
-            vec![100.0, 150.0, 200.0, 240.0, 300.0], 
-            vec![110.0, 180.0, 210.0, 230.0, 310.0],
-            vec![230.0, 270.0, 290.0, 350.0, 360.0]
-        ];
-        let mut extractor = FormantExtractor::new( 3, &resonances, vec![140.0, 230.0, 320.0]);
-        // First cycle has initial guesses
-        match extractor.next() {
-            Some(r) => { assert_eq!(r, vec![150.0, 240.0, 300.0]) },
-            None => { panic!() }
-        };
-
-        // Second cycle should be different
-        match extractor.next() {
-            Some(r) => { assert_eq!(r, vec![180.0, 230.0, 310.0]) },
-            None => { panic!() }
-        };
-
-        // Third cycle should have removed duplicates and shifted to fill all slots
-        match extractor.next() {
-            Some(r) => { assert_eq!(r, vec![230.0, 270.0, 290.0]) },
-            None => { panic!() }
-        };
-    }
-
-    #[test]
-    fn test_rms() {
-        let sine = Vec::<f64>::sine(64);
-        let rms = sine.rms();
-        println!("rms is {:?}", rms);
-        assert!((rms - 0.707).abs() < 0.001);
-    }
 }
 

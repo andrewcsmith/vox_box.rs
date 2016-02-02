@@ -331,4 +331,12 @@ mod tests {
         let res: Vec<f64> = upsamp.resample_linear(3);
         assert_eq!(res, exp);
     }
+
+    #[test]
+    fn test_rms() {
+        let sine = Vec::<f64>::sine(64);
+        let rms = sine.rms();
+        println!("rms is {:?}", rms);
+        assert!((rms - 0.707).abs() < 0.001);
+    }
 }
