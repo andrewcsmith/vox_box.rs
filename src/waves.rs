@@ -8,6 +8,35 @@ use std::cmp::Ordering::*;
 use num::Float;
 use num::traits::{FromPrimitive, ToPrimitive, Zero};
 use std::marker::PhantomData;
+use std::collections::VecDeque;
+
+pub trait HasLength {
+    fn len(&self) -> usize;
+}
+
+impl<T> HasLength for [T] {
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<'a, T> HasLength for &'a [T] {
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<T> HasLength for Vec<T> {
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<T> HasLength for VecDeque<T> {
+    fn len(&self) -> usize {
+        VecDeque::len(self)
+    }
+}
 
 pub trait Osc<T> {
     fn sine(size: usize) -> Vec<T>;
@@ -31,6 +60,17 @@ impl<T: Float + FromPrimitive> Osc<T> for Vec<T> {
             saw.push((phase - T::from_f64(0.5f64).unwrap()) * T::from_f64(-2.0f64).unwrap());
         }
         saw
+    }
+}
+
+pub trait HasRMS<T> {
+    fn rms(&self) -> T;
+}
+
+impl<T: Float + FromPrimitive + ToPrimitive> HasRMS<T> for [T] {
+    fn rms(&self) -> T {
+        let sum = self.iter().fold(0f64, |acc, &item: &T| acc + item.powi(2).to_f64().unwrap());
+        T::from_f64((sum / self.len() as f64).sqrt()).unwrap()
     }
 }
 

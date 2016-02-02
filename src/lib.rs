@@ -36,16 +36,6 @@ use polynomial::Polynomial;
 use periodic::*;
 use spectrum::*;
 
-pub trait HasRMS<T> {
-    fn rms(&self) -> T;
-}
-
-impl HasRMS<f64> for Vec<f64> {
-    fn rms(&self) -> f64 {
-        (self.iter().fold(0f64, |acc, &item: &f64| acc + item.powi(2)) / (self.len() as f64)).sqrt()
-    }
-}
-
 #[no_mangle]
 pub unsafe extern fn vox_box_autocorrelate_f32(input: *mut f32, size: size_t, n_coeffs: size_t) -> *mut [f32] {
     let buf = Vec::<f32>::from_raw_parts(input, size, size);
