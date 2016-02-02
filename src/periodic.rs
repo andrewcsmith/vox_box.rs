@@ -43,7 +43,7 @@ pub trait Autocorrelate<'a, T> {
     fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &'a mut [T]) -> &'a mut [T];
 }
 
-impl<'a, V, T> Autocorrelate<'a, T> for V
+impl<'a, V: ?Sized, T> Autocorrelate<'a, T> for V
     where T: Mul<T, Output=T> + 
              Add<T, Output=T> + 
              Div<T, Output=T> +
@@ -169,7 +169,10 @@ mod tests {
     #[test]
     fn test_ac() { 
         let sine = Vec::<f64>::sine(16);
-        sine.autocorrelate(16);
+        let mut coeffs: Vec<f64> = vec![0.; 16];
+        sine.autocorrelate_mut(16, &mut coeffs[..]);
+        let out = sine.autocorrelate(16);
+        assert_eq!(coeffs, out);
     }
 
     #[test]

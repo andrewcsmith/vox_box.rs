@@ -17,7 +17,7 @@ pub mod complex;
 pub mod polynomial;
 pub mod periodic;
 pub mod waves;
-pub mod mfcc;
+pub mod spectrum;
 
 // Use std
 use std::iter::Iterator;
@@ -34,194 +34,7 @@ use waves::*;
 use complex::{SquareRoot, ToComplexVec, ToComplex};
 use polynomial::Polynomial;
 use periodic::*;
-
-pub trait LPC<T> {
-    fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
-    fn lpc(&self, n_coeffs: usize) -> Vec<T>;
-}
-
-impl<T> LPC<T> for [T] where T: Float { 
-    fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]) {
-        /* order 0 */
-        let mut err = self[0];
-        ac[0] = T::one();
-
-        /* order >= 1 */
-        for i in 1..n_coeffs+1 {
-            let mut acc = self[i];
-            for j in 1..i {
-                acc = acc + (ac[j] * self[i-j]);
-            }
-            kc[i-1] = acc.neg() / err;
-            ac[i] = kc[i-1];
-            for j in 0..n_coeffs {
-                tmp[j] = ac[j];
-            }
-            for j in 1..i {
-                ac[j] = ac[j] + (kc[i-1] * tmp[i-j]);
-            }
-            err = err * (T::one() - (kc[i-1] * kc[i-1]));
-        };
-    }
-
-    fn lpc(&self, n_coeffs: usize) -> Vec<T> {
-        let mut ac: Vec<T> = vec![T::zero(); n_coeffs + 1];
-        let mut kc: Vec<T> = vec![T::zero(); n_coeffs];
-        let mut tmp: Vec<T> = vec![T::zero(); n_coeffs];
-        self.lpc_mut(n_coeffs, &mut ac[..], &mut kc[..], &mut tmp[..]);
-        ac
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Resonance<T> {
-    pub frequency: T,
-    pub amplitude: T
-}
-
-impl<T: Float + FromPrimitive> Resonance<T> {
-    pub fn from_root(root: &Complex<T>, sample_rate: T) -> Option<Resonance<T>> {
-        let freq_mul: T = T::from_f64(sample_rate.to_f64().unwrap() / (PI * 2f64)).unwrap();
-        if root.im >= T::zero() {
-            let res = Resonance::<T> { 
-                frequency: root.im.atan2(root.re) * freq_mul,
-                amplitude: (root.im.powi(2) + root.re.powi(2)).sqrt()
-            };
-            if res.frequency > T::one() {
-                Some(res)
-            } else { None }
-        } else { None }
-    }
-}
-
-pub trait ToResonance<T> {
-    fn to_resonance(&self, sample_rate: T) -> Vec<Resonance<T>>;
-}
-
-impl<T> ToResonance<T> for Vec<Complex<T>> where T: Float + FromPrimitive {
-    // Give it some roots, it'll find the resonances
-    fn to_resonance(&self, sample_rate: T) -> Vec<Resonance<T>> {
-        let mut res: Vec<Resonance<T>> = self.iter()
-            .filter_map(|r| Resonance::<T>::from_root(r, sample_rate)).collect();
-        res.sort_by(|a, b| (a.frequency.partial_cmp(&b.frequency)).unwrap());
-        res
-    }
-}
-
-pub struct FormantFrame<T: Float> {
-    frequency: T,
-}
-
-pub struct FormantExtractor<'a, T: 'a + Float> {
-    num_formants: usize,
-    frame_index: usize,
-    resonances: &'a Vec<Vec<T>>,
-    pub estimates: Vec<T>
-}
-
-impl<'a, T: 'a + Float + PartialEq> FormantExtractor<'a, T> {
-    pub fn new(
-        num_formants: usize, 
-        resonances: &'a Vec<Vec<T>>, 
-        starting_estimates: Vec<T>) -> Self {
-        FormantExtractor { 
-            num_formants: num_formants, 
-            resonances: resonances, 
-            frame_index: 0,
-            estimates: starting_estimates 
-        }
-    }
-}
-
-impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtractor<'a, T> {
-    type Item = Vec<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.resonances.len() == self.frame_index {
-            return None;
-        }
-
-        let frame = self.resonances[self.frame_index].clone();
-        let mut slots: Vec<Option<T>> = self.estimates.iter()
-        .map(|estimate| {
-            let mut indices: Vec<usize> = (0..frame.len()).collect();
-            indices.sort_by(|a, b| {
-                (frame[*a] - *estimate).abs().partial_cmp(&(frame[*b] - *estimate).abs()).unwrap()
-            });
-            let win = indices.first().unwrap().clone();
-            Some(frame[win])
-        }).collect();
-
-        // Step 3: Remove duplicates. If the same peak p_j fills more than one slots S_i keep it
-        // only in the slot S_k which corresponds to the estimate EST_k that it is closest to in
-        // frequency, and remove it from any other slots.
-        let mut w: usize = 0;
-        let mut has_unassigned: bool = false;
-        for r in 1..slots.len() {
-            match slots[r] {
-                Some(v) => { 
-                    if v == slots[w].unwrap() {
-                        if (v - self.estimates[r]).abs() < (v - self.estimates[w]).abs() {
-                            slots[w] = None;
-                            has_unassigned = true;
-                            w = r;
-                        } else {
-                            slots[r] = None;
-                            has_unassigned = true;
-                        }
-                    } else {
-                        w = r;
-                    }
-                },
-                None => { }
-            }
-        }
-
-        if has_unassigned {
-            // Step 4: Deal with unassigned peaks. If there are no unassigned peaks p_j, go to Step 5.
-            // Otherwise, try to fill empty slots with peaks not assigned in Step 2 as follows.
-            for j in 0..frame.len() {
-                let peak = Some(frame[j]);
-                if slots.contains(&peak) { continue; }
-                match slots.clone().get(j) {
-                    Some(&s) => {
-                        match s {
-                            Some(_) => { },
-                            None => { slots[j] = peak; continue; }
-                        }
-                    }
-                    None => { }
-                }
-                if j > 0 && j < slots.len() {
-                    match slots.clone().get(j-1) {
-                        Some(&s) => {
-                            match s {
-                                Some(_) => { },
-                                None => { slots.swap(j, j-1); slots[j] = peak; continue; }
-                            }
-                        }
-                        None => { }
-                    }
-                }
-                match slots.clone().get(j+1) {
-                    Some(&s) => {
-                        match s {
-                            Some(_) => { },
-                            None => { slots.swap(j, j+1); slots[j] = peak; continue; }
-                        }
-                    }
-                    None => { }
-                }
-            }
-        }
-
-        let mut winners: Vec<T> = slots.iter().filter_map(|v| *v).filter(|v| *v > T::zero()).collect();
-        self.estimates = winners.clone();
-        self.frame_index += 1;
-        winners.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        Some(winners)
-    }
-}
+use spectrum::*;
 
 pub trait HasRMS<T> {
     fn rms(&self) -> T;
@@ -253,8 +66,7 @@ pub unsafe extern fn vox_box_autocorrelate_f32(input: *mut f32, size: size_t, n_
 pub unsafe extern fn vox_box_autocorrelate_mut_f32(input: *const f32, size: size_t, n_coeffs: size_t, coeffs: *mut f32) {
     let buf = std::slice::from_raw_parts(input, size);
     let mut cof = std::slice::from_raw_parts_mut(coeffs, size);
-    // TODO: This line does not compile
-    // buf.autocorrelate_mut(n_coeffs, &mut cof);
+    buf.autocorrelate_mut(n_coeffs, &mut cof);
 }
 
 #[no_mangle]
@@ -377,6 +189,7 @@ mod tests {
     use std::f64::consts::PI;
     use super::waves::*;
     use super::periodic::*;
+    use super::spectrum::*;
 
     #[test]
     fn test_resonances() {

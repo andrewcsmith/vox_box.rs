@@ -7,6 +7,7 @@ use vox_box::*;
 use vox_box::polynomial::Polynomial;
 use vox_box::waves::*;
 use vox_box::periodic::*;
+use vox_box::spectrum::*;
 
 #[test]
 fn complex_sqrt() {
