@@ -26,8 +26,8 @@ rustc-serialize = "0.3"
 [dev-dependencies]
 docopt = "0.6"
 nalgebra = "0.5.1"
-audio = { git = "https://github.com/andrewcsmith/audio.git", rev = "a0ba7a0" }
-byteorder = "*"
+hound = "1.0"
+byteorder = "0.4"
 
 [profile.release]
 lto = true

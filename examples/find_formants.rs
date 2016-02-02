@@ -4,7 +4,7 @@ use std::io::{Write, Cursor, Read};
 use std::fmt;
 use std::net::{SocketAddr};
 
-extern crate audio;
+extern crate hound;
 extern crate num;
 extern crate vox_box;
 
@@ -73,15 +73,8 @@ fn main() {
     let voiced_threshold: f64 = if args.flag_threshold == 0f64 { 0.0 } else { args.flag_threshold };
 
     let file_path = &Path::new(&args.arg_file);
-    let audio = match audio::open(file_path) {
-        Ok(x) => { 
-            // println!("Read {}ms of audio", x.duration()); 
-            Some(x) 
-        },
-        Err(e) => { println!("{:?}", e); None }
-    };
-
-    let mut samples: Vec<f64> = audio.unwrap().samples.iter().map(|v| *v as f64).collect();
+    let mut file = hound::WavReader::open(file_path).unwrap();
+    let mut samples: Vec<f64> = file.samples::<i32>().map(|s| s.unwrap() as f64).collect();
     let mut cloned_samples = samples.clone();
     cloned_samples.sort_by(|a, b| b.partial_cmp(a).unwrap());
     samples.preemphasis(50.0 / 44100.0);
