@@ -20,7 +20,7 @@ rustc-serialize = "0.3"
 [dev-dependencies]
 docopt = "0.6"
 nalgebra = "0.5.1"
-audio = { path = "../audio" }
+audio = { git = "https://github.com/brianuosseph/audio.git" }
 byteorder = "*"
 
 [profile.release]
