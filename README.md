@@ -4,6 +4,8 @@ A tool to let you hack away at voice audio recordings in Rust.
 
 ## How do I do it?
 
+[Documentation](http://www.andrewchristophersmith.com/docs/vox_box/vox_box/index.html)
+
 ```rust
 // See dev dependencies: currently requires my fork at andrewcsmith/audio
 extern crate audio;
