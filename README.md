@@ -5,6 +5,7 @@ A tool to let you hack away at voice audio recordings in Rust.
 ## How do I do it?
 
 ```rust
+// See dev dependencies: currently requires my fork at andrewcsmith/audio
 extern crate audio;
 use std::path::Path;
 
