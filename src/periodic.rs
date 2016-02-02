@@ -8,35 +8,7 @@ use std::cmp::PartialOrd;
 use std::collections::VecDeque;
 use std::marker::Sized;
 
-use super::waves::{WindowType, Window, Windower, Normalize};
-
-pub trait HasLength {
-    fn len(&self) -> usize;
-}
-
-impl<T> HasLength for [T] {
-    fn len(&self) -> usize {
-        self.len()
-    }
-}
-
-impl<'a, T> HasLength for &'a [T] {
-    fn len(&self) -> usize {
-        self.len()
-    }
-}
-
-impl<T> HasLength for Vec<T> {
-    fn len(&self) -> usize {
-        self.len()
-    }
-}
-
-impl<T> HasLength for VecDeque<T> {
-    fn len(&self) -> usize {
-        VecDeque::len(self)
-    }
-}
+use super::waves::{WindowType, Window, Windower, Normalize, HasLength};
 
 pub trait Autocorrelate<'a, T> {
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T>;
