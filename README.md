@@ -7,15 +7,14 @@ A tool to let you hack away at voice audio recordings in Rust.
 [Documentation](http://www.andrewchristophersmith.com/docs/vox_box/vox_box/index.html)
 
 ```rust
-// See dev dependencies: currently requires my fork at andrewcsmith/audio
-extern crate audio;
+extern crate hound;
 use std::path::Path;
 
 // Read in some audio file
 let file_path = &Path(&path_to_file);
-let audio = try!(audio::open(file_path));
+let audio = hound::WavReader::open(&file_path).unwrap();
 // Copy the samples to an f64 buffer
-let mut samples: Vec<f64> = audio.unwrap().samples.iter().map(|v| *v as f64).collect();
+let mut samples: Vec<f64> = audio.samples::<i32>().map(|v| *v as f64).collect();
 // Give a 6db/oct boost at 50 hz and above
 samples.preemphasis(50.0 / 44100.0); 
 // Hanning window iterator, with a hop of 256 and bin of 512
