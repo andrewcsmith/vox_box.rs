@@ -6,7 +6,7 @@ use std::ops::*;
 use std::cmp::{PartialOrd};
 use std::cmp::Ordering::*;
 use num::Float;
-use num::traits::{FromPrimitive, ToPrimitive, Zero};
+use num::traits::{FromPrimitive, ToPrimitive, Zero, One};
 use std::marker::PhantomData;
 use std::collections::VecDeque;
 
@@ -130,6 +130,7 @@ impl<T: Float> Normalize<T> for [T] {
 /// { Hanning, Hamming }
 #[derive(Clone, Copy)]
 pub enum WindowType {
+    Rectangle,
     Hanning,
     HanningAutocorrelation,
     Hamming
@@ -151,6 +152,7 @@ impl<T: Float + FromPrimitive> Windowable<T> for [T] {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Window<T> {
     resource_type: PhantomData<T>,
     window_type: WindowType,
@@ -169,9 +171,12 @@ impl<T> Window<T> {
     }
 }
 
-impl<T: Zero + Float + FromPrimitive> Window<T> {
+impl<T: Zero + One + Float + FromPrimitive> Window<T> {
     fn val_at(&self, idx: usize) -> T {
         match self.window_type {
+            WindowType::Rectangle => {
+                T::one()
+            },
             WindowType::Hanning => {
                 let phase: f64 = (idx as f64 / (self.len as f64 - 1.)) * 2.0 * PI;
                 T::from_f64(0.5 * (1. - phase.cos())).unwrap_or(T::zero())
@@ -208,6 +213,7 @@ impl<T: Float + FromPrimitive> Iterator for Window<T> {
 /// Iterates over a block of data
 ///
 /// Returns a Vec<T> at each iteration, which will be owned by the receiving context
+#[derive(Clone)]
 pub struct Windower<'a, T: 'a> {
     window_type: WindowType,
     hop_size: usize,
