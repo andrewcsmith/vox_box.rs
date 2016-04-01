@@ -145,9 +145,9 @@ pub trait Windowable<T> {
 
 impl<T: Float + FromPrimitive> Windowable<T> for [T] {
     fn window(&mut self, wtype: WindowType) {
-        let len = self.len();
-        for (v, w) in self.iter_mut().zip(Window::<T>::new(wtype, len)) {
-            *v = *v * w;
+        let window = Window::<T>::new(wtype, self.len());
+        for idx in 0..self.len() {
+            self[idx] = self[idx] * window.val_at(idx);
         }
     }
 }
