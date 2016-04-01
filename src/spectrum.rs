@@ -3,12 +3,13 @@ extern crate rustfft as fft;
 
 use std::f64::consts::PI;
 use std::ops::Index;
+use std::mem;
 use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
 use super::waves::Filter;
 use std::fmt::Debug;
 
-const FFT_SIZE: usize = 512;
+const FFT_SIZE: usize = 2048;
 
 pub trait LPC<T> {
     fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
@@ -238,10 +239,10 @@ impl<T: ?Sized> MFCC<T> for [T]
         let mel_range = hz_to_mel(freq_bounds.1) - hz_to_mel(freq_bounds.0);
         // Still an iterator
         let points = (0..(num_coeffs + 2)).map(|i| (i as f64 / num_coeffs as f64) * mel_range + hz_to_mel(freq_bounds.0));
-        let bins: Vec<usize> = points.map(|point| ((FFT_SIZE + 1) as f64 * mel_to_hz(point) / sample_rate).floor() as usize).collect();
+        let bins: Vec<usize> = points.map(|point| ((self.len() + 1) as f64 * mel_to_hz(point) / sample_rate).floor() as usize).collect();
 
-        let mut spectrum = vec![Complex::<T>::from(T::zero()); FFT_SIZE];
-        let mut fft = fft::FFT::new(FFT_SIZE, false);
+        let mut spectrum = vec![Complex::<T>::from(T::zero()); self.len()];
+        let mut fft = fft::FFT::new(self.len(), false);
         let signal: Vec<Complex<T>> = self.iter().map(|e| Complex::<T>::from(e)).collect();
         fft.process(&signal, &mut spectrum);
 
