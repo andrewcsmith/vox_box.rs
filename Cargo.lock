@@ -11,7 +11,7 @@ dependencies = [
  "rand 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustfft 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sample 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sample 0.7.0",
 ]
 
 [[package]]
@@ -123,8 +123,7 @@ dependencies = [
 
 [[package]]
 name = "sample"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.7.0"
 
 [[package]]
 name = "strsim"

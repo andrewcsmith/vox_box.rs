@@ -18,7 +18,7 @@ crate-type = ["dylib", "rlib"]
 [dependencies]
 num = "0.1"
 rand = "0.3"
-sample = "0.2"
+sample = { path = "/Users/acsmith/workspaces/rust/sample" }
 libc = "0.2"
 rustfft = "1.0"
 rustc-serialize = "0.3"
