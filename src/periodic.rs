@@ -2,44 +2,59 @@ extern crate num;
 
 use num::{Float, FromPrimitive, Zero};
 
-use std::f64::consts::PI;
 use std::ops::*;
 use std::cmp::PartialOrd;
-use std::collections::VecDeque;
 use std::marker::Sized;
 
-use super::waves::{WindowType, Window, Windower, Normalize, HasLength};
+use super::waves::{WindowType, Window, Normalize, HasLength};
 
-pub trait Autocorrelate<'a, T> {
-    fn autocorrelate(&self, n_coeffs: usize) -> Vec<T>;
-    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &'a mut [T]) -> &'a mut [T];
+#[inline]
+pub fn max_value<T: Float>(data: &[T]) -> T {
+    data.iter().fold(T::nan(), |acc, x| x.max(acc))
 }
 
-impl<'a, V: ?Sized, T> Autocorrelate<'a, T> for V
-    where T: Mul<T, Output=T> + 
-             Add<T, Output=T> + 
-             Div<T, Output=T> +
-             Zero +
-             Copy + 
-             PartialOrd,
-          V: Index<usize, Output=T> +
-             HasLength 
-{ 
+/// Trait for things that can Autocorrelate. Implement the mutable version, which takes a slice of
+/// coefficients, and receive a version that allocates its own vector for free.
+///
+/// ```
+/// extern crate vox_box;
+/// use vox_box::periodic::Autocorrelate;
+/// 
+/// let some_values = [1.0, 0.5, 0.0, -0.5, -1.0];
+/// assert_eq!(some_values.autocorrelate(2), vec![-1.0, -1.0]);
+/// ```
+pub trait Autocorrelate<T> 
+    where T: Zero +
+             Clone
+{
+    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &mut [T]);
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T> {
         let mut coeffs: Vec<T> = vec![T::zero(); n_coeffs];
         self.autocorrelate_mut(n_coeffs, &mut coeffs);
         coeffs
     }
+}
 
-    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &'a mut [T]) -> &'a mut [T] {
+// Implement Autocorrelation for anything that can be indexed
+impl<V: ?Sized, T> Autocorrelate<T> for V
+    where T: Mul<T, Output=T> + 
+             Add<T, Output=T> + 
+             Div<T, Output=T> +
+             Zero +
+             Clone + 
+             PartialOrd,
+          V: Index<usize, Output=T> +
+             HasLength 
+{ 
+    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &mut [T]) {
+        assert!(n_coeffs <= coeffs.len());
         for lag in 0..n_coeffs {
-            let mut accum = self[0];
+            let mut accum = self[0].clone();
             for i in 1..(self.len() - (lag)) {
-                accum = accum + (self[i] * self[(i + lag) as usize]);
+                accum = accum + (self[i].clone() * self[(i + lag) as usize].clone());
             }
             coeffs[lag] = accum;
         }
-        coeffs
     }
 }
 
@@ -59,12 +74,12 @@ pub struct PitchExtractor<'a, T: 'a + Float> {
     frame_index: usize,
     voiced_unvoiced_cost: T,
     voicing_threshold: T,
-    candidates: &'a Vec<Vec<Pitch<T>>>,
+    candidates: &'a [&'a [Pitch<T>]],
     current_cost: T
 }
 
 impl<'a, T: 'a + Float> PitchExtractor<'a, T> {
-    pub fn new(candidates: &'a Vec<Vec<Pitch<T>>>, voiced_unvoiced_cost: T, voicing_threshold: T) -> Self {
+    pub fn new(candidates: &'a [&'a [Pitch<T>]], voiced_unvoiced_cost: T, voicing_threshold: T) -> Self {
         PitchExtractor {
             frame_index: 0,
             voiced_unvoiced_cost: voiced_unvoiced_cost,
@@ -94,8 +109,7 @@ pub trait HasPitch<T> {
 }
 
 impl<T: Float + PartialOrd + FromPrimitive> HasPitch<T> for Vec<T> {
-    // Assumes that it's being passed a windowed signal
-    // Returns (frequency, strength)
+    /// Assumes that it's being passed a windowed signal
     fn pitch(&self, sample_rate: T, threshold: T, silence_threshold: T, local_peak: T, global_peak: T, octave_cost: T, min: T, max: T, window_type: WindowType) -> Vec<Pitch<T>> {
         let window_lag: Vec<T> = match window_type {
             WindowType::Hanning => { Window::<T>::new(WindowType::HanningAutocorrelation, self.len()).collect() },
@@ -113,7 +127,8 @@ impl<T: Float + PartialOrd + FromPrimitive> HasPitch<T> for Vec<T> {
         let mut maxima: Vec<Pitch<T>> = local_max.iter()
             .map(|x| {
                 let freq = sample_rate / T::from_usize(x.0).unwrap();
-                let strn = x.1 - (octave_cost.powi(2) * (min * freq).log2());
+                let mut strn = x.1 - (octave_cost.powi(2) * (min * freq).log2());
+                if strn > T::from_f64(1.).unwrap() { strn = T::from_f64(1.).unwrap() / strn; }
                 Pitch { frequency: freq, strength: strn }
             })
             .filter(|x| ((x.frequency) == T::from_f64(0f64).unwrap()) || (x.frequency > min && x.frequency < max))

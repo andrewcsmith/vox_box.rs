@@ -4,8 +4,6 @@ extern crate sample;
 pub use num::complex::*;
 use num::Float;
 use num::traits::FromPrimitive;
-use std::ops::{Add, Sub};
-use sample::Sample;
 
 pub trait SquareRoot<T> {
     fn sqrt(&self) -> Complex<T>;

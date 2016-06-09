@@ -1,7 +1,7 @@
 extern crate num;
 
 use std::f64::consts::PI;
-use std::iter::{Iterator, ExactSizeIterator};
+use std::iter::Iterator;
 use std::ops::*;
 use std::cmp::{PartialOrd};
 use std::cmp::Ordering::*;

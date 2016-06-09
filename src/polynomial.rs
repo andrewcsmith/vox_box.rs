@@ -1,10 +1,8 @@
-#![feature(test)]
 extern crate num;
 
 use std::ops::Neg;
 use std::iter::*;
 use std::fmt::Debug;
-use std::marker::Sized;
 
 use num::{Float, Num, Zero, One, FromPrimitive, Complex};
 
@@ -40,7 +38,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         let n: usize = self.len() - 1;
         let mut z = start;
         // max iterations of 20
-        for k in 0..20 {
+        for _ in 0..20 {
             let mut abg = [self[n], Complex::<T>::zero(), Complex::<T>::zero()];
 
             for j in (0..n).rev() {
@@ -77,7 +75,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         let mut work: Vec<Complex<T>> = vec![Complex::<T>::from(T::zero()); work_size];
         let mut other = self.to_vec();
         {
-            other.find_roots_mut(&mut work[..]);
+            other.find_roots_mut(&mut work[..]); 
         }
         while other[other.len()-1] == Complex::<T>::zero() {
             other.pop();
@@ -167,13 +165,13 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
                 }
             }
             // println!("self: {:?}", self);
-            for i in ds..(ns+1) { 
+            for _ in ds..(ns+1) { 
                 let l = rem.iter().rposition(|x| *x != Complex::<T>::zero()).unwrap_or(0);
                 rem[l] = Complex::<T>::zero();
             }
             let l = self.iter().rposition(|x| *x != Complex::<T>::zero()).unwrap_or(0);
             // println!("ns, ds: {:?}, {:?}, {:?}", ns, ds, l + 1);
-            for i in 0..((l + 1) - ns - ds + 1) { 
+            for _ in 0..((l + 1) - ns - ds + 1) { 
                 let l = self.iter().rposition(|x| *x != Complex::<T>::zero()).unwrap_or(0);
                 self[l] = Complex::<T>::zero();
             } 
@@ -195,7 +193,6 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
     /// Returns the remainder
     fn div_polynomial(&mut self, other: Complex<T>) -> Result<Vec<Complex<T>>, &str> {
         let mut rem = self.to_vec();
-        let mut res: Result<(), &str> = Ok(());
         {
             self.div_polynomial_mut(other, &mut rem[..]);
         }

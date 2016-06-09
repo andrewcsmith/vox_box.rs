@@ -2,6 +2,7 @@ use std::path::Path;
 use std::fs::File;
 use std::io::{Write, Cursor, Read};
 use std::fmt;
+use std::i32;
 use std::net::{SocketAddr};
 
 extern crate hound;
@@ -75,17 +76,15 @@ fn main() {
     let file_path = &Path::new(&args.arg_file);
     let mut file = hound::WavReader::open(file_path).unwrap();
     let mut samples: Vec<f64> = file.samples::<i32>().map(|s| s.unwrap() as f64).collect();
-    let mut cloned_samples = samples.clone();
-    cloned_samples.sort_by(|a, b| b.partial_cmp(a).unwrap());
+    let global_max = samples.iter().max_by_key(|s| (*s * i32::MAX as f64) as i32).map(|s| *s as f64 / i32::MAX as f64).unwrap();
     samples.preemphasis(50.0 / 44100.0);
     let window = Windower::new(WindowType::Hanning, &samples[..], hop_size, bin_size);
     // println!("Splitting into {:?} bins", window.len());
 
     let frames: Vec<(Vec<Pitch<f64>>, Vec<Resonance<f64>>, f64)> = window.map(|data| {
         let rms = data.rms();
-        let mut cloned = data.clone();
-        cloned.sort_by(|a, b| b.partial_cmp(a).unwrap());
-        let pitches: Vec<Pitch<f64>> = data.pitch(44100f64, voiced_threshold, 0.05, cloned[0], cloned_samples[0], 0.01, 75f64, 150f64, WindowType::Hanning);
+        let local_max = data.iter().max_by_key(|s| (*s * i32::MAX as f64) as i32).map(|s| *s as f64 / i32::MAX as f64).unwrap();
+        let pitches: Vec<Pitch<f64>> = data.pitch(44100f64, voiced_threshold, 0.05, local_max, global_max, 0.01, 75f64, 150f64, WindowType::Hanning);
 
         let mut auto = data.resample_linear(bin_size / 4).autocorrelate(16);
         auto.normalize();

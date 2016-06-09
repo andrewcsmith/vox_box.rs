@@ -3,13 +3,9 @@ extern crate rustfft as fft;
 
 use std::f64::consts::PI;
 use std::ops::Index;
-use std::mem;
 use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
-use super::waves::Filter;
 use std::fmt::Debug;
-
-const FFT_SIZE: usize = 2048;
 
 pub trait LPC<T> {
     fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
@@ -95,10 +91,10 @@ pub struct FormantFrame<T: Float> {
 }
 
 pub struct FormantExtractor<'a, T: 'a + Float> {
+    pub estimates: Vec<T>,
     num_formants: usize,
     frame_index: usize,
-    resonances: &'a Vec<Vec<Resonance<T>>>,
-    pub estimates: Vec<T>
+    resonances: &'a Vec<Vec<Resonance<T>>>
 }
 
 impl<'a, T: 'a + Float + PartialEq> FormantExtractor<'a, T> {
@@ -218,7 +214,7 @@ pub fn mel_to_hz(mel: f64) -> f64 {
 }
 
 pub fn dct<T: FromPrimitive + ToPrimitive + Float>(signal: &[T]) -> Vec<T> {
-    signal.iter().enumerate().map(|(k, val)| {
+    signal.iter().enumerate().map(|(k, _)| {
         T::from_f64(2. * (0..signal.len()).fold(0., |acc, n| {
             acc + signal[n].to_f64().unwrap() * (PI * k as f64 * (2. * n as f64 + 1.) / (2. * signal.len() as f64)).cos()
         })).unwrap()
