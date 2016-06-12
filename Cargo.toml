@@ -18,16 +18,9 @@ crate-type = ["dylib", "rlib"]
 [dependencies]
 num = "0.1"
 rand = "0.3"
-sample = { path = "/Users/acsmith/workspaces/rust/sample" }
+sample = { version = "0.6.1", path = "/Users/acsmith/workspaces/rust/sample" }
 libc = "0.2"
 rustfft = "1.0"
-rustc-serialize = "0.3"
-
-[dev-dependencies]
-docopt = "0.6"
-nalgebra = "0.5.1"
-hound = "1.0"
-byteorder = "0.4"
 
 [profile.release]
 lto = true

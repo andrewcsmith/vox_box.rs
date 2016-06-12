@@ -264,11 +264,20 @@ impl<T: ?Sized> MFCC<T> for [T]
 
 #[cfg(test)]
 mod test {
+    extern crate sample;
+    extern crate rand;
+
     use super::*;
     use rand::{thread_rng, Rng};
     use waves::*;
     use periodic::*;
+    use sample::{window, ToSampleSlice};
     use num::Complex;
+
+    fn sine(len: usize) -> Vec<f64> {
+        let rate = sample::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
+    }
 
     #[test]
     fn test_resonances() {
@@ -281,7 +290,7 @@ mod test {
 
     #[test]
     fn test_lpc() {
-        let sine = Vec::<f64>::sine(8);
+        let sine = sine(8);
         let mut auto = sine.autocorrelate(8);
         // assert_eq!(maxima[3], (128, 1.0));
         auto.normalize();       
@@ -338,8 +347,12 @@ mod test {
     #[test]
     fn test_mfcc() {
         let mut rng = thread_rng();
-        let mut vec: Vec<f64> = (0..super::FFT_SIZE).map(|_| rng.gen_range::<f64>(-1., 1.)).collect();
-        vec.preemphasis(0.1f64 * 22_050.).window(WindowType::Hanning);
+        let mut vec: Vec<f64> = (0..256).map(|_| rng.gen_range::<f64>(-1., 1.)).collect();
+        vec.preemphasis(0.1f64 * 22_050.);
+        let hanning_window: Vec<[f64; 1]> = window::hanning(256).take(256).collect();
+        for (v, w) in vec.iter_mut().zip(hanning_window.to_sample_slice().iter()) {
+            *v *= *w;
+        }
         let mfccs = vec.mfcc(26, (133., 6855.), 22_050.);
         println!("mfccs: {:?}", mfccs);
     }

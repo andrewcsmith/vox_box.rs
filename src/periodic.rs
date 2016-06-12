@@ -7,6 +7,8 @@ use sample;
 use sample::window::Window;
 use sample::{Sample, ToSampleSlice};
 
+use std::f64::consts::PI;
+
 
 pub trait LagType: sample::window::Type {
     type Lag: sample::window::Type;
@@ -16,13 +18,13 @@ pub struct HanningLag;
 
 impl sample::window::Type for HanningLag {
     fn at_phase<S: Sample>(phase: S) -> S {
-        let pi_2 = <S::Float as sample::Float>::pi() * 2.0.to_sample();
-        let v = phase.to_float_sample() * pi_2;
+        let pi_2 = (PI * 2.).to_sample();
+        let v: f64 = (phase.to_float_sample() * pi_2).to_sample::<f64>();
         let one_third: S::Float = (1.0 / 3.0).to_sample();
         let two_thirds: S::Float = (2.0 / 3.0).to_sample();
         let one: S::Float = 1.0.to_sample();
-        ((one - phase.to_float_sample()) * (two_thirds + (one_third * sample::Float::cos(v))) 
-            + (one / pi_2) * sample::Float::sin(v)).to_sample::<S>()
+        ((one - phase.to_float_sample()) * (two_thirds + (one_third * (sample::ops::f64::cos(v)).to_sample())) 
+            + (one / pi_2) * (sample::ops::f64::sin(v)).to_sample()).to_sample::<S>()
     }
 }
 
@@ -156,8 +158,10 @@ impl<S, T> Pitched<S, T> for [S]
         let mut maxima: Vec<Pitch<T>> = self_lag.local_maxima().iter()
             .map(|x| {
                 let freq = sample_rate / T::from_usize(x.0).unwrap();
-                let mut strn = T::from(x.1.to_float_sample()).unwrap() - (octave_cost.powi(2) * (min * freq).log2());
-                if strn > T::from_f64(1.).unwrap() { strn = T::from_f64(1.).unwrap() / strn; }
+                let n: T = octave_cost.powi(2) * (min * freq).log2();
+                let strn = T::from(x.1.to_float_sample()).unwrap() - n;
+                // let mut strn = T::from(x.1.to_float_sample()).unwrap() - (octave_cost.powi(2) * (min * freq).log2());
+                // if strn > T::from_f64(1.).unwrap() { strn = T::from_f64(1.).unwrap() / strn; }
                 Pitch { frequency: freq, strength: strn }
             })
             .filter(|x| ((x.frequency) == T::from_f64(0f64).unwrap()) || (x.frequency > min && x.frequency < max))
@@ -170,14 +174,24 @@ impl<S, T> Pitched<S, T> for [S]
 
 #[cfg(test)]
 mod tests {
+    extern crate sample;
+
     use super::*;
     use super::super::waves::*;
+
+    use sample::{window, ToSampleSlice};
+    use sample::signal::{Sine};
     use std::cmp::Ordering;
     use std::f64::consts::PI;
 
+    fn sine(len: usize) -> Vec<f64> {
+        let rate = sample::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
+    }
+
     #[test]
     fn test_ac() { 
-        let sine = Vec::<f64>::sine(16);
+        let sine = sine(16);
         let mut coeffs: Vec<f64> = vec![0.; 16];
         sine.autocorrelate_mut(16, &mut coeffs[..]);
         let out = sine.autocorrelate(16);
@@ -186,31 +200,14 @@ mod tests {
 
     #[test]
     fn test_pitch() {
-        let mut signal = Vec::<f64>::with_capacity(128);
-        for i in 0..128 {
-            let phase = (i as f64) / 128f64;
-            signal.push(
-                (1f64 + 0.3f64 * (140f64 * 2f64 * PI * phase).sin()) *
-                (280f64 * 2f64 * PI * phase).sin()
-            );
-        };
-
-        let mut vector = Vec::<f64>::with_capacity(512);
-        for _ in 0..4 { vector.extend(signal.iter().cloned()); }
-        let mut sortable = vector.clone();
-        sortable.sort_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
-        let global_peak = sortable[0];
-        let local_peak = global_peak.clone();
-        let mut auto = vector.autocorrelate(512);
-        auto.normalize();
-        let maxima = auto.local_maxima();
-        assert_eq!(maxima.len(), 95);
-        let len = vector.len();
-        for (v, w) in vector.iter_mut().zip(Window::<f64>::new(WindowType::Hanning, len)) {
-            *v *= w;
+        let mut signal = sample::signal::rate(44100.).const_hz(440.).sine();
+        let vector: Vec<[f64; 1]> = signal.take(2048).collect();
+        let mut maxima: f64 = vector.to_sample_slice().max();
+        for chunk in window::Windower::hanning(&vector[..], 2048, 512) {
+            let chunk_data: Vec<[f64; 1]> = chunk.collect();
+            let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, 0.05, maxima, maxima, 0.01, 100., 1000.);
+            println!("pitch: {:?}", pitch);
+            assert_eq!(pitch[0].frequency, 440.);
         }
-        let pitch = vector.pitch(512f64, 0.2f64, 0.05, local_peak, global_peak, 0.01, 10f64, 100f64, WindowType::Hanning);
-        assert_eq!(pitch[0].frequency, 16f64);
     }
-
 }

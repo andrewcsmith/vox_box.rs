@@ -107,15 +107,18 @@ impl<T> Filter<T> for [T]
 
 #[cfg(test)]
 mod tests {
+    extern crate sample;
+
     use super::*;
     use super::super::*;
     use super::super::periodic::*;
 
     use sample::conv::ToSampleSlice;
+    use sample::window::{Hanning, Window};
 
     fn sine(len: usize) -> Vec<f64> {
-        let rate = sample::signal::rate(len).const_hz(1.0);
-        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice()
+        let rate = sample::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
     }
 
     #[test]
@@ -124,42 +127,23 @@ mod tests {
         sine.preemphasis(0.1f64); // preemphasize at 0.1 * sampling rate
     }
 
-    // #[test]
-    // fn test_windower() {
-    //     let data = Vec::<f64>::sine(64);
-    //     let windower = Windower::new(WindowType::Hanning, &data[..], 16, 32);
-    //     assert_eq!(windower.len(), 3);
-    // }
-
-    // #[test]
-    // fn test_window_autocorr() {
-    //     let data: Vec<f64> = Window::<f64>::new(WindowType::HanningAutocorrelation, 16).collect();
-    //     println!("window autocorr: {:?}", &data);
-    //     let mut manual: Vec<f64> = Window::<f64>::new(WindowType::Hanning, 16).collect();
-    //     manual = manual.autocorrelate(16);
-    //     manual.normalize();
-    //     println!("manual autocorr: {:?}", &manual);
-    //     for i in 0..16 {
-    //         let diff = (manual[i] - data[i]).abs();
-    //         assert!(diff < 1e-1);
-    //     }
-    // }
-
-    // #[test]
-    // fn test_resample_vec32() {
-    //     let upsamp: Vec<f32> = vec![1f32, 2.0, 3.0, 4.0];
-    //     let exp: Vec<f32> = vec![1f32, 4.0];
-    //     let res: Vec<f32> = upsamp.resample_linear(2);
-    //     assert_eq!(res, exp);
-    // }
-
-    // #[test]
-    // fn test_resample_vec64() {
-    //     let upsamp: Vec<f64> = vec![1f64, 2.0, 3.0, 4.0];
-    //     let exp: Vec<f64> = vec![1f64, 2.5, 4.0];
-    //     let res: Vec<f64> = upsamp.resample_linear(3);
-    //     assert_eq!(res, exp);
-    // }
+    #[test]
+    fn test_window_autocorr() {
+        let lag_window: Window<[f64; 1], HanningLag> = Window::new(16);
+        let data: Vec<[f64; 1]> = lag_window.take(16).collect();
+        println!("window autocorr: {:?}", &data);
+        let window: Window<[f64; 1], Hanning> = Window::new(16);
+        let mut manual: Vec<f64> = {
+            let mut d: Vec<[f64; 1]> = window.take(16).collect();
+            d.to_sample_slice().autocorrelate(16)
+        };
+        manual.normalize();
+        println!("manual autocorr: {:?}", &manual);
+        for i in 0..16 {
+            let diff = (manual[i] - data.to_sample_slice()[i]).abs();
+            assert!(diff < 1e-1);
+        }
+    }
 
     #[test]
     fn test_rms() {
