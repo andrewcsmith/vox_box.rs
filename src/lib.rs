@@ -1,4 +1,4 @@
-#![cfg_attr(nightly, feature(test))]
+#![feature(test)]
 
 extern crate num;
 extern crate rand;

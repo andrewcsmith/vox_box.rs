@@ -204,12 +204,14 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
 mod tests {
     extern crate num;
 
-    use super::*;
-    use num::complex::Complex;
+    pub use super::*;
+    pub use num::complex::Complex;
 
-    #[cfg(nightly)]
+    #[cfg(test)]
     mod bench {
         extern crate test;
+        use super::*;
+
         #[bench]
         fn bench_degree(b: &mut test::Bencher) {
             let mut x: Vec<Complex<f32>> = vec![0.0, 0.0, 3.0, 4.0, 2.0, 6.0, 0.0, 0.0].iter().map(|v| Complex::<f32>::from(v)).collect();
