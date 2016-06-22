@@ -10,8 +10,19 @@ use sample::{Sample, ToSampleSlice, FromSample};
 use std::f64::consts::PI;
 use std;
 
-/// Lifted from Praat code
-fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, max_depth: usize) -> f64 {
+/// Interpolate a given point x within a sampled slice y, using sinc interpolation.
+///
+/// ```rust
+/// sin(x) / x
+/// ```
+///
+/// This windows around the target point `x` using a Hanning window. 
+///
+/// [Source](http://www.fon.hum.uva.nl/paul/papers/Proceedings_1993.pdf): 
+/// Boersma, Paul. "Accurate short-term analysis of the fundamental frequency and the
+/// harmonics-to-noise ratio of a sampled sound." Institute of Phonetic Sciences, University of
+/// Amsterdam, Proceedings 17 (1993), 97-110.
+pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut max_depth: usize) -> f64 {
     let x = x.to_float_sample().to_sample::<f64>();
     let nl = x.floor() as usize;
     let nr = nl + 1;
@@ -25,7 +36,16 @@ fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, max_dept
     if x < 1. { return y[1].to_float_sample().to_sample::<f64>() }
     if x == nl as f64 { return y[nl].to_float_sample().to_sample::<f64>() };
 
-    for n in 0..max_depth {
+    // Protect against usize underflow in indexing the lag vector
+    if (offset + nr as isize) < max_depth as isize {
+        max_depth = (offset + nr as isize) as usize;
+    }
+
+    if (offset + nl as isize + max_depth as isize) >= nx as isize {
+        max_depth = (nx as isize - offset + nl as isize - 1) as usize;
+    }
+
+    for n in 0..(max_depth+1) {
         result += {
             let a = PI * (phil + n as f64);
             let r_lag = y[(offset as i32 + nr as i32 - n as i32) as usize].to_float_sample().to_sample::<f64>();
@@ -43,6 +63,149 @@ fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, max_dept
     }
 
     result
+}
+
+pub enum Interpolation {
+    None,
+    Parabolic,
+    Sinc(usize),
+}
+
+struct BrentParams<'a, S: Sample + 'a> {
+    y: &'a [S],
+    offset: isize,
+    depth: usize,
+    ixmax: usize,
+    is_max: bool
+}
+
+fn brent_maximize<'a, S: Sample>(f: &Fn(f64, &BrentParams<'a, S>) -> f64, 
+                             bounds: (f64, f64),
+                             params: &'a BrentParams<S>,
+                             tol: f64, fx: &mut f64) -> f64 {
+    let (mut a, mut b) = bounds;
+    let golden = 1. - 0.6180339887498948482045868343656381177203091798057628621;
+    let sqrt_epsilon = std::f64::MIN.sqrt();
+    let itermax = 60;
+
+    assert!(tol > 0.);
+    assert!(a < b);
+    let mut v = a + golden * (b - a);
+    let mut fv = f(v, &params);
+    let mut x = v;
+    let mut w = v;
+    *fx = fv;
+    let mut fw = fv;
+
+    for iter in 1..(itermax+1) {
+        let range = b - a;
+        let middle_range = (a + b) * 0.5;
+        let tol_act = sqrt_epsilon * x.abs() + tol / 3.;
+
+        if (x - middle_range).abs() + range * 0.5 <= 2. * tol_act {
+            return x;
+        }
+
+        let mut new_step = if x < middle_range {
+            golden * (b - x)
+        } else {
+            golden * (a - x)
+        };
+
+        if (x - w).abs() >= tol_act {
+            let t = (x - w) * (*fx - fv);
+            let mut q = (x - v) * (*fx - fw);
+            let mut p = (x - v) * q - (x - w) * t;
+            q = 2. * q - t;
+
+            if (q > 0.) {
+                p = -p;
+            } else {
+                q = -q;
+            }
+            if p.abs() < (new_step * q).abs() &&
+            p > q * (a - x + 2. * tol_act) &&
+            p < q * (b - x - 2. * tol_act) {
+                new_step = p / q;
+            }
+        }
+
+        if new_step.abs() < tol_act {
+            new_step = if new_step > 0. { tol_act } else { -tol_act };
+        }
+
+        {
+            let t = x + new_step;
+            let ft = f(t, params);
+
+            if ft <= *fx {
+                if t < x {
+                    b = x;
+                } else {
+                    a = x;
+                }
+                v = w; w = x; x = t;
+                fv = fw; fw = *fx; *fx = ft;
+            } else {
+                if t < x {
+                    a = t;
+                } else { 
+                    b = t;
+                }
+
+                if ft <= fw || w == x {
+                    v = w; w = t;
+                    fv = fw; fw = ft;
+                } else if ft <= fv || v == x || v == w {
+                    v = t;
+                    fv = ft;
+                }
+            }
+        }
+    }
+    x
+}
+
+
+/// Returns (xmid, ymid) for the maximum sample index and sample value
+pub fn improve_extremum<S: Sample + FromSample<f64>>(y: &[S], offset: isize, nx: usize, ixmid: f64, interp: Interpolation, is_max: bool) -> (f64, f64) {
+    if (ixmid == 0.) { return (0., y[0].to_float_sample().to_sample::<f64>()) }
+    if (ixmid >= nx as f64) { return (nx as f64, y[nx-1].to_float_sample().to_sample::<f64>()) }
+
+    match interp {
+        Interpolation::None => {
+            (0., y[0].to_float_sample().to_sample::<f64>())
+        },
+        Interpolation::Parabolic => {
+            let diff = y[ixmid.floor() as usize + 1].to_float_sample().to_sample::<f64>() - y[ixmid.floor() as usize - 1].to_float_sample().to_sample::<f64>();
+            let mid = y[ixmid.floor() as usize].to_float_sample().to_sample::<f64>();
+            let dy = 0.5 * diff;
+            let d2y = 2.0 * mid - diff;
+            let ixmid_real = ixmid as f64 + dy / d2y;
+            (ixmid_real, mid + 0.5 * dy * dy / d2y)
+        },
+        Interpolation::Sinc(max_depth) => {
+            let params = BrentParams {
+                y: y,
+                offset: offset,
+                depth: max_depth,
+                ixmax: nx,
+                is_max: is_max
+            };
+            let f = |x: f64, params: &BrentParams<S>| -> f64 {
+                let out = interpolate_sinc(params.y, params.offset, params.ixmax, x.to_sample::<S>(), params.depth);
+                if params.is_max {
+                    out
+                } else {
+                    -out
+                }
+            };
+            let mut result: f64 = 0.;
+            let (a, b) = (ixmid as f64 - 1., ixmid as f64 + 1.);
+            let ixmid_real = brent_maximize(&f, (a, b), &params, 1e-10, &mut result);
+            (ixmid_real, result)
+        }
+    }
 }
 
 pub trait LagType: sample::window::Type {
@@ -177,7 +340,20 @@ impl<S, T> Pitched<S, T> for [S]
           S::Float: ToPrimitive,
           T: Float + FromPrimitive
 {
-    /// Assumes that it's being passed a windowed signal
+    /// Find the pitch of a slice of samples, using the autocorrelation technique described in
+    /// Boersma 1993. This function assumes that the slice has already been windowed in some way,
+    /// and the window must have a corresponding autocorrelation function.
+    ///
+    /// First pass interpolates the peaks based on parabolic interpolation, using sinc
+    /// interpolation to find the values of the peaks for calculating harmonics-to-noise ratio (the
+    /// "strength" of the signal).
+    ///
+    /// Second pass maximizes the function more accurately using a 700-sample depth sinc
+    /// interpolation and the Brent golden section parabolic maximization algorithm. This results
+    /// in a collection of possible pitches and their given HNR ratings.
+    ///
+    /// A third pass, using PitchExtractor, should trace a path through these pitch candidates to
+    /// find something that works from frame to frame.
     fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, silence_threshold: S, local_peak: S, global_peak: S, octave_cost: T, min: T, max: T) -> Vec<Pitch<T>> {
         let window_lag: Vec<S> = Window::<[S; 1], W::Lag>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]).collect();
         let mut self_lag = self.autocorrelate(self.len());
@@ -205,21 +381,28 @@ impl<S, T> Pitched<S, T> for [S]
                 let freq = sample_rate / T::from_f64(x.0 as f64 + dr / d2r).unwrap();
 
                 // Calculate the strength using sin(x)/x interpolation
-                // let offset = -(brent_ixmax as isize) - 1;
-                let offset = 0;
+                // Not entirely sure what "offset" does
+                let offset = -(brent_ixmax as isize) - 1;
                 let nx = (brent_ixmax as isize - offset) as usize;
                 let n = (sample_rate / freq - T::from(offset).unwrap()).to_f64().unwrap().to_sample::<S>();
                 let mut strn = interpolate_sinc(&self_lag[..], offset, nx, n, 30);
-
                 // Reflect high values due to short sampling periods around 1.0
                 if strn > 1. { strn = 1. / strn; }
-
-                println!("x: {:?} to {:?}", x, self_lag[x.0+1]);
-                println!("freq: {}\t\tstrn: {}", freq.to_f64().unwrap(), strn.to_f64().unwrap());
 
                 Pitch { frequency: freq, strength: T::from_f64(strn).unwrap() }
             })
             .filter(|x| ((x.frequency) == T::from_f64(0f64).unwrap()) || (x.frequency > min && x.frequency < max))
+            .map(|mut p| {
+                let offset = -(brent_ixmax as isize) - 1;
+                let nx = (brent_ixmax as isize - offset) as usize;
+                let n = (sample_rate / p.frequency - T::from(offset).unwrap()).to_f64().unwrap();
+                let (mut xmid, mut ymid) = improve_extremum(&self_lag[..], offset, nx, n, Interpolation::Sinc(700), true);
+                xmid += offset as f64;
+                if ymid > 1. { ymid = 1. / ymid; }
+                p.frequency = sample_rate / T::from(xmid).unwrap();
+                p.strength = T::from(ymid).unwrap();
+                p
+            })
             .collect();
         maxima.push(Pitch::new(T::from_usize(0).unwrap(), threshold)); // Index of 0 == no pitch
         maxima.sort_by(|a, b| (b.strength).partial_cmp(&a.strength).unwrap());
@@ -255,15 +438,15 @@ mod tests {
 
     #[test]
     fn test_pitch() {
-        let exp_freq = 200.0;
+        let exp_freq = 150.0;
         let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
-        let vector: Vec<[f64; 1]> = signal.take(4096).collect();
+        let vector: Vec<[f64; 1]> = signal.take(4096 * 2).collect();
         let mut maxima: f64 = vector.to_sample_slice().max();
-        for chunk in window::Windower::hanning(&vector[..], 1024, 512) {
+        for chunk in window::Windower::hanning(&vector[..], 4096, 1024) {
             let chunk_data: Vec<[f64; 1]> = chunk.collect();
             let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, 0.05, maxima, maxima, 0.01, 100., 500.);
             println!("pitch: {:?}", pitch);
-            assert!((pitch[0].frequency - exp_freq).abs() < 1.0);
+            assert!((pitch[0].frequency - exp_freq).abs() < 1.0e-2);
         }
     }
 }
