@@ -6,30 +6,20 @@ use std::iter::Iterator;
 use std::ops::*;
 use std::cmp::Ordering::*;
 
-use num::Float;
-use num::traits::{FromPrimitive, ToPrimitive};
+use sample::{Sample, FloatSample, FromSample};
 
-use sample::Sample;
-
-pub trait RMS<T> {
-    fn rms(&self) -> T;
+pub trait RMS<S> {
+    fn rms(&self) -> S;
 }
 
-impl<T: Float + FromPrimitive + ToPrimitive> RMS<T> for [T] {
-    fn rms(&self) -> T {
+impl<S: Sample> RMS<S> for [S] {
+    fn rms(&self) -> S {
         let sum = self.iter()
-            .fold(0f64, |acc, &item: &T| acc + item.powi(2).to_f64().unwrap());
-        T::from_f64((sum / self.len() as f64).sqrt()).unwrap()
-    }
-}
-
-pub trait Max<T> {
-    fn max(&self) -> T;
-}
-
-impl<T: Float> Max<T> for [T] {
-    fn max(&self) -> T {
-        self.iter().fold(T::nan(), |acc, x| x.max(acc))
+            .fold(S::equilibrium(), |acc, &item: &S| {
+                acc.add_amp(item.mul_amp(item.to_float_sample()).to_signed_sample())
+            });
+        (sum.to_float_sample() / (self.len() as f64).to_sample::<S::Float>())
+            .sample_sqrt().to_sample::<S>()
     }
 }
 
@@ -54,13 +44,18 @@ pub trait MaxAmplitude<S> {
 /// Returns the maximum peak amplitude in a given slice of samples
 impl<S: Sample> MaxAmplitude<S> for [S] {
     fn max_amplitude(&self) -> S {
-        self[1..].iter().fold(self[0].amplitude(), |acc, elem| {
-            let amp = elem.amplitude();
-            match amp.partial_cmp(&acc) {
-                Some(Greater) => amp,
-                _ => acc
-            }
-        })
+        assert!(self.len() > 0);
+        if self.len() == 1 {
+            self[0].amplitude()
+        } else {
+            self[1..].iter().fold(self[0].amplitude(), |acc, elem| {
+                let amp = elem.amplitude();
+                match amp.partial_cmp(&acc) {
+                    Some(Greater) => amp,
+                    _ => acc
+                }
+            })
+        }
     }
 }
 
@@ -73,7 +68,7 @@ pub trait Normalize<S> {
 
 impl<S: Sample> Normalize<S> for [S] {
     fn normalize_with_max(&mut self, max: Option<S>) {
-        let scale_factor: <S as Sample>::Float = <S as Sample>::Float::identity() / 
+        let scale_factor: <S as Sample>::Float = <S as Sample>::identity() / 
             max.unwrap_or(self.max_amplitude()).to_float_sample();
         for elem in self.iter_mut() {
             *elem = elem.mul_amp(scale_factor);
@@ -85,22 +80,18 @@ impl<S: Sample> Normalize<S> for [S] {
 ///
 /// Preemphasis should give a 6db/oct boost above a particular center frequency
 /// Factor is center `frequency / sample_rate`
-pub trait Filter<T> {
-    fn preemphasis(&mut self, factor: T) -> &mut [T];
+pub trait Filter {
+    fn preemphasis(&mut self, factor: f64) -> &mut Self; 
 }
 
-impl<T> Filter<T> for [T] 
-    where T: Mul<T, Output=T> + 
-             Sub<T, Output=T> + 
-             Copy + 
-             ToPrimitive + 
-             FromPrimitive 
-{
-    fn preemphasis<'a>(&'a mut self, factor: T) -> &'a mut [T] {
-        let filter = T::from_f64((-2.0 * PI * factor.to_f64().unwrap()).exp()).unwrap();
-        for i in (1..self.len()).rev() {
-            self[i] = self[i] - (self[i-1] * filter);
-        };
+impl<S: Sample + FromSample<f64>> Filter for [S] {
+    fn preemphasis<'a>(&'a mut self, factor: f64) -> &'a mut [S] {
+        let mut last = self[self.len()-1];
+        let filter = 2.0 * PI * factor;
+        for x in self.iter_mut().rev().skip(1) {
+            *x = x.add_amp(last.mul_amp(filter.to_sample::<S::Float>()).to_signed_sample());
+            last = *x;
+        }
         self
     }
 }

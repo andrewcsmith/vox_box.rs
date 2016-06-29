@@ -444,7 +444,7 @@ mod tests {
         let exp_freq = 150.0;
         let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
         let vector: Vec<[f64; 1]> = signal.take(4096 * 2).collect();
-        let mut maxima: f64 = vector.to_sample_slice().max();
+        let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
         for chunk in window::Windower::hanning(&vector[..], 4096, 1024) {
             let chunk_data: Vec<[f64; 1]> = chunk.collect();
             let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, 0.05, maxima, maxima, 0.01, 100., 500.);
