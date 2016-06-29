@@ -8,6 +8,7 @@ use sample::window::Window;
 use sample::{Sample, ToSampleSlice, FromSample};
 
 use std::f64::consts::PI;
+use std::f64::EPSILON;
 use std;
 
 /// Interpolate a given point x within a sampled slice y, using sinc interpolation.
@@ -34,7 +35,7 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
     if nx < 1 { return std::f64::NAN }
     if x > nx as f64 { return y[nx as usize].to_float_sample().to_sample::<f64>() }
     if x < 1. { return y[1].to_float_sample().to_sample::<f64>() }
-    if x == nl as f64 { return y[nl].to_float_sample().to_sample::<f64>() };
+    if (x - nl as f64).abs() < EPSILON { return y[nl].to_float_sample().to_sample::<f64>() };
 
     // Protect against usize underflow in indexing the lag vector
     if (offset + nr as isize) < max_depth as isize {
@@ -85,19 +86,19 @@ fn brent_maximize<'a, S: Sample>(f: &Fn(f64, &BrentParams<'a, S>) -> f64,
                              tol: f64, fx: &mut f64) -> f64 {
     let (mut a, mut b) = bounds;
     let golden = 1. - 0.6180339887498948482045868343656381177203091798057628621;
-    let sqrt_epsilon = std::f64::MIN.sqrt();
+    let sqrt_epsilon = EPSILON.sqrt();
     let itermax = 60;
 
     assert!(tol > 0.);
     assert!(a < b);
     let mut v = a + golden * (b - a);
-    let mut fv = f(v, &params);
+    let mut fv = f(v, params);
     let mut x = v;
     let mut w = v;
     *fx = fv;
     let mut fw = fv;
 
-    for iter in 1..(itermax+1) {
+    for _ in 1..(itermax+1) {
         let range = b - a;
         let middle_range = (a + b) * 0.5;
         let tol_act = sqrt_epsilon * x.abs() + tol / 3.;
@@ -118,7 +119,7 @@ fn brent_maximize<'a, S: Sample>(f: &Fn(f64, &BrentParams<'a, S>) -> f64,
             let mut p = (x - v) * q - (x - w) * t;
             q = 2. * q - t;
 
-            if (q > 0.) {
+            if q > 0. {
                 p = -p;
             } else {
                 q = -q;
@@ -153,10 +154,10 @@ fn brent_maximize<'a, S: Sample>(f: &Fn(f64, &BrentParams<'a, S>) -> f64,
                     b = t;
                 }
 
-                if ft <= fw || w == x {
+                if ft <= fw || (w - x).abs() < EPSILON {
                     v = w; w = t;
                     fv = fw; fw = ft;
-                } else if ft <= fv || v == x || v == w {
+                } else if ft <= fv || (v - x).abs() < EPSILON || (v - w).abs() < EPSILON {
                     v = t;
                     fv = ft;
                 }
@@ -169,8 +170,8 @@ fn brent_maximize<'a, S: Sample>(f: &Fn(f64, &BrentParams<'a, S>) -> f64,
 
 /// Returns (xmid, ymid) for the maximum sample index and sample value
 pub fn improve_extremum<S: Sample + FromSample<f64>>(y: &[S], offset: isize, nx: usize, ixmid: f64, interp: Interpolation, is_max: bool) -> (f64, f64) {
-    if (ixmid == 0.) { return (0., y[0].to_float_sample().to_sample::<f64>()) }
-    if (ixmid >= nx as f64) { return (nx as f64, y[nx-1].to_float_sample().to_sample::<f64>()) }
+    if ixmid == 0. { return (0., y[0].to_float_sample().to_sample::<f64>()) }
+    if ixmid >= nx as f64 { return (nx as f64, y[nx-1].to_float_sample().to_sample::<f64>()) }
 
     match interp {
         Interpolation::None => {
@@ -257,12 +258,12 @@ impl<T> Autocorrelate<T> for [T]
 {
     fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &mut [T]) {
         assert!(n_coeffs <= coeffs.len());
-        for lag in 0..n_coeffs {
+        for (lag, item) in coeffs.iter_mut().enumerate().take(n_coeffs) {
             let mut accum: T = self[0];
-            for i in 1..(self.len() - lag) {
-                accum = accum.add_amp(self[i].mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample());
+            for (i, sample) in self.iter().enumerate().take(self.len() - lag).skip(1) {
+                accum = accum.add_amp(sample.mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample());
             }
-            coeffs[lag] = accum;
+            *item = accum;
         }
     }
 }
@@ -320,6 +321,8 @@ pub trait Pitched<S, T: Float> {
     fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, silence_threshold: S, local_peak: S, global_peak: S, octave_cost: T, min: T, max: T) -> Vec<Pitch<T>>;
 }
 
+/// Trait for finding local maxima in a given slice. `local_maxima` should return `Vec<(bin,
+/// value)>` where `bin` is the index of the maximum and `value` is the value at that index.
 trait LocalMaxima<S: Sample> {
     fn local_maxima(&self) -> Vec<(usize, S)>;
 }

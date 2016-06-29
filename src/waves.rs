@@ -84,7 +84,7 @@ impl<S: Sample> Normalize<S> for [S] {
 /// Filter
 ///
 /// Preemphasis should give a 6db/oct boost above a particular center frequency
-/// Factor is center frequency / sample_rate
+/// Factor is center `frequency / sample_rate`
 pub trait Filter<T> {
     fn preemphasis(&mut self, factor: T) -> &mut [T];
 }

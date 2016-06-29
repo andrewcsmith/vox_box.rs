@@ -21,6 +21,3 @@ rand = "0.3"
 sample = { version = "0.6.1", path = "/Users/acsmith/workspaces/rust/sample" }
 libc = "0.2"
 rustfft = "1.0"
-
-[profile.release]
-lto = true
