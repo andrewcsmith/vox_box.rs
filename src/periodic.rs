@@ -222,8 +222,8 @@ impl sample::window::Type for HanningLag {
         let one_third: S::Float = (1.0 / 3.0).to_sample();
         let two_thirds: S::Float = (2.0 / 3.0).to_sample();
         let one: S::Float = 1.0.to_sample();
-        ((one - phase.to_float_sample()) * (two_thirds + (one_third * (sample::ops::f64::cos(v)).to_sample())) 
-            + (one / pi_2) * (sample::ops::f64::sin(v)).to_sample()).to_sample::<S>()
+        ((one - phase.to_float_sample()) * (two_thirds + (one_third * v.cos().to_sample()).to_sample::<S::Float>()) 
+            + (one / pi_2) * v.sin().to_sample()).to_sample::<S>()
     }
 }
 

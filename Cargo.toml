@@ -18,6 +18,6 @@ crate-type = ["dylib", "rlib"]
 [dependencies]
 num = "0.1"
 rand = "0.3"
-sample = { version = "0.6.1", path = "/Users/acsmith/workspaces/rust/sample" }
+sample = "0.6.1"
 libc = "0.2"
 rustfft = "1.0"
