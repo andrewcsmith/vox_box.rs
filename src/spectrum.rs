@@ -2,10 +2,48 @@ extern crate num;
 extern crate rustfft as fft;
 
 use std::f64::consts::PI;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
+use std::default::Default;
+use std::marker::PhantomData;
 use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
 use std::fmt::Debug;
+
+pub struct LPCSolver<'a, T: 'a> {
+    n_coeffs: usize,
+    ac: &'a mut [T],
+    kc: &'a mut [T],
+    tmp: &'a mut [T]
+}
+
+impl<'a, T: 'a + Float> LPCSolver<'a, T> {
+    /// Constructs an LPCSolver without any allocations required.
+    ///
+    /// work must be at least length `n_coeffs * 3 + 1`.
+    pub fn new(n_coeffs: usize, work: &'a mut [T]) -> LPCSolver<'a, T> {
+        assert!(work.len() > n_coeffs * 3 + 1);
+
+        let (ac, mut work) = work.split_at_mut(n_coeffs + 1);
+        let (kc, tmp) = work.split_at_mut(n_coeffs);
+
+        LPCSolver {
+            n_coeffs: n_coeffs,
+            ac: ac,
+            kc: kc,
+            tmp: tmp
+        }
+    }
+
+    /// Finds the LPC coefficients for the autocorrelated buffer
+    pub fn solve(&mut self, buf: &[T]) {
+        buf.lpc_mut(self.n_coeffs, self.ac, self.kc, self.tmp);
+    }
+
+    /// Returns the slice of LPC coefficients
+    pub fn lpc(&self) -> &[T] {
+        &self.ac[..]
+    }
+}
 
 pub trait LPC<T> {
     fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
@@ -16,6 +54,11 @@ impl<V: ?Sized, T> LPC<T> for V where
     T: Float,
     V: Index<usize, Output=T>
 { 
+    /// Calculates the LPCs, reusing slices of memory for workspace.
+    ///
+    /// ac: size must be at least `n_coeffs + 1`
+    /// kc: size must be at least `n_coeffs`
+    /// tmp: size must be at least `n_coeffs`
     fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]) {
         /* order 0 */
         let mut err = self[0];
@@ -48,10 +91,19 @@ impl<V: ?Sized, T> LPC<T> for V where
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Resonance<T> {
     pub frequency: T,
     pub amplitude: T
+}
+
+impl<T> Resonance<T> {
+    pub fn new(f: T, a: T) -> Resonance<T> {
+        Resonance {
+            frequency: f,
+            amplitude: a
+        }
+    }
 }
 
 impl<T: Float + FromPrimitive> Resonance<T> {
@@ -90,56 +142,49 @@ pub struct FormantFrame<T: Float> {
     frequency: T,
 }
 
-pub struct FormantExtractor<'a, T: 'a + Float> {
-    pub estimates: Vec<T>,
-    num_formants: usize,
-    frame_index: usize,
-    resonances: &'a Vec<Vec<Resonance<T>>>
+pub trait EstimateFormants<T> {
+    type FormantSlots;
+    fn estimate_formants(&mut self, resonances: &[Resonance<T>]);
 }
 
-impl<'a, T: 'a + Float + PartialEq> FormantExtractor<'a, T> {
-    pub fn new(
-        num_formants: usize, 
-        resonances: &'a Vec<Vec<Resonance<T>>>, 
-        starting_estimates: Vec<T>) -> Self {
-        FormantExtractor { 
-            num_formants: num_formants, 
-            resonances: resonances, 
-            frame_index: 0,
-            estimates: starting_estimates 
-        }
-    }
+fn diff_func<T: Float>(a: T, b: &T) -> T {
+    (a - *b).abs()
 }
 
-impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtractor<'a, T> {
-    type Item = Vec<T>;
+impl<T: Float> EstimateFormants<T> for [Resonance<T>] {
+    /// Let's cap things at 6 formants. Give me a ring if you need extra and I can get my guy to
+    /// get a few more.
+    type FormantSlots = [Option<Resonance<T>>; 6];
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.resonances.len() == self.frame_index {
-            return None;
+    /// Assumes that [self] is a sequence of Resonances corresponding to either the previous
+    /// formant frame or the estimated formants for the next frame.
+    fn estimate_formants(&mut self, resonances: &[Resonance<T>]) {
+        let mut slots = Self::FormantSlots::default();
+        // Step 2: Get the nearest resonance index for each estimated value
+        for (estimate, slot) in self.iter().zip(slots.iter_mut()) {
+            let start = (resonances[0], diff_func(resonances[0].frequency, &estimate.frequency));
+            *slot = Some(resonances.iter().skip(1).fold(start, |acc, item| {
+                let distance = diff_func(item.frequency, &estimate.frequency);
+                if distance < acc.1 {
+                    (*item, distance)
+                } else {
+                    acc
+                }
+            }).0)
         }
-
-        let frame = self.resonances[self.frame_index].clone();
-        let mut slots: Vec<Option<T>> = self.estimates.iter()
-        .map(|estimate| {
-            let mut indices: Vec<usize> = (0..frame.len()).collect();
-            indices.sort_by(|a, b| {
-                (frame[*a].frequency - *estimate).abs().partial_cmp(&(frame[*b].frequency - *estimate).abs()).unwrap()
-            });
-            let win = indices.first().unwrap().clone();
-            Some(frame[win].frequency)
-        }).collect();
 
         // Step 3: Remove duplicates. If the same peak p_j fills more than one slots S_i keep it
         // only in the slot S_k which corresponds to the estimate EST_k that it is closest to in
         // frequency, and remove it from any other slots.
-        let mut w: usize = 0;
-        let mut has_unassigned: bool = false;
+        let mut w = 0usize;
+        let mut has_unassigned = false;
+
         for r in 1..slots.len() {
             match slots[r] {
                 Some(v) => { 
+                    // If this resonance is the same as the previous one...
                     if v == slots[w].unwrap() {
-                        if (v - self.estimates[r]).abs() < (v - self.estimates[w]).abs() {
+                        if diff_func(v.frequency, &self[r].frequency) < diff_func(v.frequency, &self[w].frequency) {
                             slots[w] = None;
                             has_unassigned = true;
                             w = r;
@@ -158,8 +203,8 @@ impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtracto
         if has_unassigned {
             // Step 4: Deal with unassigned peaks. If there are no unassigned peaks p_j, go to Step 5.
             // Otherwise, try to fill empty slots with peaks not assigned in Step 2 as follows.
-            for j in 0..frame.len() {
-                let peak = Some(frame[j].frequency);
+            for j in 0..resonances.len() {
+                let peak = Some(resonances[j]);
                 if slots.contains(&peak) { continue; }
                 match slots.clone().get(j) {
                     Some(&s) => {
@@ -193,11 +238,48 @@ impl<'a, T: 'a + Float + PartialEq + FromPrimitive> Iterator for FormantExtracto
             }
         }
 
-        let mut winners: Vec<T> = slots.iter().filter_map(|v| *v).filter(|v| *v > T::zero()).collect();
-        self.estimates = winners.clone();
-        self.frame_index += 1;
-        winners.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        Some(winners)
+        // Update the current slice with the new formants that have been decided upon
+        for (winner, estimate) in slots.iter()
+            .filter_map(|v| *v).filter(|v| v.frequency > T::zero())
+            .zip(self.iter_mut()) 
+        {
+            *estimate = winner;
+        }
+    }
+}
+
+pub struct FormantExtractor<'a, T: 'a + Float, I: Iterator<Item=&'a [Resonance<T>]>> {
+    pub estimates: Vec<Resonance<T>>,
+    num_formants: usize,
+    resonances: I,
+    phantom: PhantomData<&'a T>
+}
+
+impl<'a, T, I> FormantExtractor<'a, T, I> 
+    where T: 'a + Float + PartialEq,
+          I: Iterator<Item=&'a [Resonance<T>]>
+{
+    pub fn new(num_formants: usize, resonances: I, starting_estimates: Vec<Resonance<T>>) -> Self {
+        FormantExtractor { 
+            num_formants: num_formants, 
+            resonances: resonances, 
+            estimates: starting_estimates,
+            phantom: PhantomData
+        }
+    }
+}
+
+impl<'a, T, I> Iterator for FormantExtractor<'a, T, I> 
+    where T: 'a + Float + PartialEq,
+          I: Iterator<Item=&'a [Resonance<T>]>
+{
+    type Item = Vec<Resonance<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let frame = self.resonances.next();
+        if frame.is_none() { return None; }
+        &self.estimates[..].estimate_formants(frame.unwrap());
+        Some(self.estimates.clone())
     }
 }
 
@@ -314,24 +396,39 @@ mod test {
             vec![110.0, 180.0, 210.0, 230.0, 310.0],
             vec![230.0, 270.0, 290.0, 350.0, 360.0]
         ].iter().map(|z| z.iter().map(|r| Resonance::<f64> { frequency: *r, amplitude: 1. }).collect()).collect();
-        let mut extractor = FormantExtractor::new( 3, &resonances, vec![140.0, 230.0, 320.0]);
+        let estimates = vec![140., 230., 320.].iter().map(|r| Resonance::<f64> { frequency: *r, amplitude: 1. }).collect();
+
+        let mut extractor = FormantExtractor::new(3, resonances.iter().map(|r| &r[..]), estimates);
+
         // First cycle has initial guesses
         match extractor.next() {
-            Some(r) => { assert_eq!(r, vec![150.0, 240.0, 300.0]) },
+            Some(r) => { 
+                let freqs: Vec<f64> = r.iter().map(|f| f.frequency).collect();
+                // Post-step-3 should be: 150, 240, 300 
+                assert_eq!(freqs, vec![150.0, 240.0, 300.0]) 
+            },
             None => { panic!() }
-        };
+        }
 
         // Second cycle should be different
         match extractor.next() {
-            Some(r) => { assert_eq!(r, vec![180.0, 230.0, 310.0]) },
+            Some(r) => { 
+                let freqs: Vec<f64> = r.iter().map(|f| f.frequency).collect();
+                // Post-step-3 should be: 180, 230, 310
+                assert_eq!(freqs, vec![180.0, 230.0, 310.0]) 
+            },
             None => { panic!() }
-        };
+        }
 
         // Third cycle should have removed duplicates and shifted to fill all slots
         match extractor.next() {
-            Some(r) => { assert_eq!(r, vec![230.0, 270.0, 290.0]) },
+            Some(r) => { 
+                let freqs: Vec<f64> = r.iter().map(|f| f.frequency).collect();
+                // Post-step-3 should be: None, 230, 290
+                assert_eq!(freqs, vec![230.0, 270.0, 290.0]) 
+            },
             None => { panic!() }
-        };
+        }
     }
 
     #[test]

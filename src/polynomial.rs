@@ -11,20 +11,16 @@ pub trait Polynomial<'a, T> {
     fn off_low(&self) -> usize;
     fn laguerre(&self, z: Complex<T>) -> Complex<T>;
 
+    fn find_roots_work_size(&self) -> usize;
     fn find_roots(&self) -> Result<Vec<Complex<T>>, &str>;
     fn find_roots_mut<'b>(&'b mut self, &'b mut [Complex<T>]) -> Result<(), &str>;
 
-    fn div_polynomial(&mut self, z: Complex<T>) -> Result<Vec<Complex<T>>, &str>;
+    fn div_polynomial(&mut self, other: Complex<T>) -> Result<Vec<Complex<T>>, &str>;
     fn div_polynomial_mut(&'a mut self, other: Complex<T>, rem: &'a mut [Complex<T>]) -> Result<(), &str>;
 }
 
 impl<'a, T> Polynomial<'a, T> for [Complex<T>] 
-    where T: Float +
-             Num +
-             Clone +
-             Debug +
-             FromPrimitive +
-             Into<Complex<T>>
+    where T: Float + FromPrimitive
 {
     fn degree(&self) -> usize {
         self.iter().rposition(|r| r != &Complex::<T>::zero()).unwrap_or(0)
@@ -70,9 +66,13 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         z
     }
 
+    /// Override to determine the necessary size of the Vec for the workspace
+    fn find_roots_work_size(&self) -> usize {
+        self.len() * 6 + 4
+    }
+
     fn find_roots(&self) -> Result<Vec<Complex<T>>, &str> {
-        let work_size = self.len() * 6 + 4;
-        let mut work: Vec<Complex<T>> = vec![Complex::<T>::from(T::zero()); work_size];
+        let mut work: Vec<Complex<T>> = vec![Complex::<T>::from(T::zero()); self.find_roots_work_size()];
         let mut other = self.to_vec();
         {
             other.find_roots_mut(&mut work[..]); 
@@ -152,7 +152,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         }
 
         if other != Complex::<T>::zero() {
-            let ns = self.iter().rposition(|x| *x != Complex::<T>::zero()).unwrap_or(0);
+            let ns = self.degree();
             let ds = 1;
             for i in (0..(ns - ds + 1)).rev() {
                 self[i] = rem[ds + i];
@@ -166,14 +166,12 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
             }
             // println!("self: {:?}", self);
             for _ in ds..(ns+1) { 
-                let l = rem.iter().rposition(|x| *x != Complex::<T>::zero()).unwrap_or(0);
-                rem[l] = Complex::<T>::zero();
+                rem[rem.degree()] = Complex::<T>::zero();
             }
-            let l = self.iter().rposition(|x| *x != Complex::<T>::zero()).unwrap_or(0);
+            let l = self.degree();
             // println!("ns, ds: {:?}, {:?}, {:?}", ns, ds, l + 1);
             for _ in 0..((l + 1) - ns - ds + 1) { 
-                let l = self.iter().rposition(|x| *x != Complex::<T>::zero()).unwrap_or(0);
-                self[l] = Complex::<T>::zero();
+                self[self.degree()] = Complex::<T>::zero();
             } 
             // println!("self: {:?}", &self);
             // println!("rem: {:?}", &rem);

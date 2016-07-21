@@ -245,10 +245,10 @@ impl LagType for sample::window::Hanning {
 pub trait Autocorrelate<T> 
     where T: Sample
 {
-    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &mut [T]);
+    fn autocorrelate_mut(&self, coeffs: &mut [T]);
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T> {
         let mut coeffs: Vec<T> = vec![T::equilibrium(); n_coeffs];
-        self.autocorrelate_mut(n_coeffs, &mut coeffs);
+        self.autocorrelate_mut(&mut coeffs[..]);
         coeffs
     }
 }
@@ -256,14 +256,13 @@ pub trait Autocorrelate<T>
 impl<T> Autocorrelate<T> for [T] 
     where T: Sample
 {
-    fn autocorrelate_mut(&self, n_coeffs: usize, coeffs: &mut [T]) {
-        assert!(n_coeffs <= coeffs.len());
-        for (lag, item) in coeffs.iter_mut().enumerate().take(n_coeffs) {
+    fn autocorrelate_mut(&self, coeffs: &mut [T]) {
+        for (lag, coeff) in coeffs.iter_mut().enumerate() {
             let mut accum: T = self[0];
             for (i, sample) in self.iter().enumerate().take(self.len() - lag).skip(1) {
                 accum = accum.add_amp(sample.mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample());
             }
-            *item = accum;
+            *coeff = accum;
         }
     }
 }
@@ -355,8 +354,8 @@ impl<S, T> Pitched<S, T> for [S]
     /// interpolation and the Brent golden section parabolic maximization algorithm. This results
     /// in a collection of possible pitches and their given HNR ratings.
     ///
-    /// A third pass, using PitchExtractor, should trace a path through these pitch candidates to
-    /// find something that works from frame to frame.
+    /// A third pass, using PitchExtractor, should find a path through these candidates that
+    /// maximizes both the smoothness of the pitch contour and the strength of the pitches.
     fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, silence_threshold: S, local_peak: S, global_peak: S, octave_cost: T, min: T, max: T) -> Vec<Pitch<T>> {
         let window_lag: Vec<S> = Window::<[S; 1], W::Lag>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]).collect();
         let mut self_lag = self.autocorrelate(self.len());
@@ -434,7 +433,7 @@ mod tests {
     fn test_ac() { 
         let sine = sine(16);
         let mut coeffs: Vec<f64> = vec![0.; 16];
-        sine.autocorrelate_mut(16, &mut coeffs[..]);
+        sine.autocorrelate_mut(&mut coeffs[..]);
         let out = sine.autocorrelate(16);
         assert_eq!(coeffs, out);
     }
