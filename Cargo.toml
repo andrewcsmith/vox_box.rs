@@ -21,3 +21,6 @@ rand = "0.3"
 sample = "0.6.1"
 libc = "0.2"
 rustfft = "1.0"
+
+[features]
+nightly = []
