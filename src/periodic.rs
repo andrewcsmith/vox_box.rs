@@ -356,15 +356,22 @@ impl<S, T> Pitched<S, T> for [S]
     ///
     /// A third pass, using PitchExtractor, should find a path through these candidates that
     /// maximizes both the smoothness of the pitch contour and the strength of the pitches.
+    #[inline(never)]
+    // TODO: need 2 empty mutable Vecs, 
+    // self_lag: [T; 2*self.len()]
+    // maxima: [Pitch<T>; max_maxima], theoretically could be up to (0.5 * self.len()).ceil()
     fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, silence_threshold: S, local_peak: S, global_peak: S, octave_cost: T, min: T, max: T) -> Vec<Pitch<T>> {
-        let window_lag: Vec<S> = Window::<[S; 1], W::Lag>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]).collect();
+        let window_lag = Window::<[S; 1], W::Lag>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]);
+
+        // TODO: remove allocation
         let mut self_lag = self.autocorrelate(self.len());
         self_lag.normalize();
 
-        for (s, w) in self_lag.iter_mut().zip(window_lag.iter()) {
+        for (s, w) in self_lag.iter_mut().zip(window_lag) {
             *s = (s.to_float_sample() / w.to_float_sample()).to_sample::<S>();
         }
 
+        // TODO: remove allocation
         self_lag.resize(self.len() * 2, S::from_sample(0.));
 
         let voiceless = (T::zero(), threshold + T::zero().max(T::one() + T::one() - (T::from(local_peak.to_float_sample()).unwrap() / T::from(global_peak.to_float_sample()).unwrap()) / (T::from(silence_threshold.to_float_sample()).unwrap() / T::one() + threshold)));
@@ -372,6 +379,7 @@ impl<S, T> Pitched<S, T> for [S]
         let interpolation_depth = 0.5;
         let brent_ixmax = (interpolation_depth * self.len() as f64).floor() as usize;
 
+        // TODO: remove allocation
         let mut maxima: Vec<Pitch<T>> = self_lag[0..brent_ixmax as usize].local_maxima().iter()
             .map(|x| {
                 // Calculate the frequency using parabolic interpolation
@@ -442,7 +450,7 @@ mod tests {
     fn test_pitch() {
         let exp_freq = 150.0;
         let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
-        let vector: Vec<[f64; 1]> = signal.take(4096 * 2).collect();
+        let vector: Vec<[f64; 1]> = signal.take(4096 * 4).collect();
         let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
         for chunk in window::Windower::hanning(&vector[..], 4096, 1024) {
             let chunk_data: Vec<[f64; 1]> = chunk.collect();
