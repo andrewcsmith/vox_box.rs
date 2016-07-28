@@ -1,5 +1,6 @@
 extern crate num;
 
+use std::f32;
 use std::ops::Neg;
 use std::iter::*;
 use std::fmt::Debug;
@@ -20,7 +21,7 @@ pub trait Polynomial<'a, T> {
 }
 
 impl<'a, T> Polynomial<'a, T> for [Complex<T>] 
-    where T: Float + FromPrimitive
+    where T: Float + FromPrimitive + Debug
 {
     fn degree(&self) -> usize {
         self.iter().rposition(|r| r != &Complex::<T>::zero()).unwrap_or(0)
@@ -34,7 +35,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         let n: usize = self.len() - 1;
         let mut z = start;
         // max iterations of 20
-        for _ in 0..20 {
+        for iteration in 0..20 {
             let mut abg = [self[n], Complex::<T>::zero(), Complex::<T>::zero()];
 
             for j in (0..n).rev() {
@@ -43,25 +44,29 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
                 abg[0] = abg[0] * z + self[j];
             }
 
-            if abg[0].norm() <= T::from_f32(1e-14f32).unwrap() { return z; }
+            if abg[0].norm() <= T::from(1.0e-16).unwrap() { return z; }
 
             let ca: Complex<T> = abg[1].neg() / abg[0];
             let ca2: Complex<T> = ca * ca;
+
+            // H = 1/a^2 + (n-1)/b^2
             let cb: Complex<T> = ca2 - ((Complex::<T>::from(T::one() + T::one()) * abg[2]) / abg[0]);
-            let c1: Complex<T> = ((Complex::<T>::from(T::from_usize(n-1).unwrap()) *
-                                  Complex::<T>::from(T::from_usize(n).unwrap()) * cb) - ca2).sqrt();
+
+
+            // sqrt((n-1)(nH-G^2))
+            let c1: Complex<T> = ((Complex::<T>::from(T::from(n-1).unwrap()) *
+                                  Complex::<T>::from(T::from(n).unwrap()) * cb) - ca2).sqrt();
 
             let cc1: Complex<T> = ca + c1;
             let cc2: Complex<T> = ca - c1;
 
             let cc = if cc1.norm() > cc2.norm() {
-                cc1 / Complex::<T>::from(T::from_usize(n).unwrap())
+                Complex::<T>::from(T::from_usize(n).unwrap()) / cc1
             } else {
-                cc2 / Complex::<T>::from(T::from_usize(n).unwrap())
+                Complex::<T>::from(T::from_usize(n).unwrap()) / cc2
             };
 
-            let c2 = cc.inv();
-            z = z + c2;
+            z = z + cc;
         }
         z
     }
@@ -109,7 +114,8 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
 
         // Use the Laguerre method to factor out a single root
         for i in (3..(m+1)).rev() {
-            let z = coeffs.laguerre(Complex::<T>::new(T::from_f32(-64.0f32).unwrap(), T::from_f32(-64.0f32).unwrap()));
+            let start = Complex::<T>::new(T::from(-2.0).unwrap(), T::from(-2.0).unwrap());
+            let z = coeffs.laguerre(start);
             z_roots[z_root_index] = z;
             z_root_index += 1;
             // println!("z is {:?}", z);
@@ -350,8 +356,8 @@ mod tests {
         assert_eq!(roots.len(), roots_exp.len());
         for i in 0..roots_exp.len() {
             let diff = roots[i] - roots_exp[i];
-            assert!(diff.re.abs() < 1e-12);
-            assert!(diff.im.abs() < 1e-12);
+            assert!(diff.re.abs() < 1e-6);
+            assert!(diff.im.abs() < 1e-6);
         }
     }
 

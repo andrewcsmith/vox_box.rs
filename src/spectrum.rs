@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
 use std::fmt::Debug;
+use std::cmp::Ordering;
 
 pub struct LPCSolver<'a, T: 'a> {
     n_coeffs: usize,
@@ -92,6 +93,7 @@ impl<V: ?Sized, T> LPC<T> for V where
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[repr(C)]
 pub struct Resonance<T> {
     pub frequency: T,
     pub amplitude: T
@@ -109,10 +111,11 @@ impl<T> Resonance<T> {
 impl<T: Float + FromPrimitive> Resonance<T> {
     pub fn from_root(root: &Complex<T>, sample_rate: T) -> Option<Resonance<T>> {
         let freq_mul: T = T::from_f64(sample_rate.to_f64().unwrap() / (PI * 2f64)).unwrap();
+        let invsqrt2 = T::from(1.0 / 2.0.sqrt()).unwrap();
         if root.im >= T::zero() {
             let res = Resonance::<T> { 
                 frequency: root.im.atan2(root.re) * freq_mul,
-                amplitude: (root.im.powi(2) + root.re.powi(2)).sqrt()
+                amplitude: (root.im.powi(2) + root.re.powi(2)).sqrt() * invsqrt2
             };
             if res.frequency > T::one() {
                 Some(res)
@@ -237,6 +240,20 @@ impl<T: Float> EstimateFormants<T> for [Resonance<T>] {
                 }
             }
         }
+
+        slots.sort_by(|a, b| { 
+            match *a {
+                Some(a_real) => {
+                    match *b {
+                        Some(b_real) => {
+                            a_real.frequency.partial_cmp(&b_real.frequency).unwrap_or(Ordering::Equal)
+                        },
+                        None => { Ordering::Greater }
+                    }
+                }
+                None => { Ordering::Less }
+            }
+        });
 
         // Update the current slice with the new formants that have been decided upon
         for (winner, estimate) in slots.iter()
