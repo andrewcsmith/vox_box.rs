@@ -1,3 +1,6 @@
+#![feature(alloc_system)]
+
+extern crate alloc_system;
 extern crate sample;
 extern crate vox_box;
 extern crate num;
@@ -15,22 +18,18 @@ fn sine(len: usize) -> Vec<f64> {
     rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
 }
 
-/// Currently gives results:
-///
-/// test bench_pitch ... bench:  13,197,760 ns/iter (+/- 2,671,434)
 fn get_pitch() -> Result<(), ()> {
     let exp_freq = 150.0;
     let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
-    let vector: Vec<[f64; 1]> = signal.take(4096 * 1 + 1).collect();
+    let vector: Vec<[f64; 1]> = signal.take(2048 * 1 + 1).collect();
     let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
 
-    let mut chunk_data: Vec<f64> = Vec::with_capacity(4096);
-    for chunk in window::Windower::hanning(&vector[..], 4096, 1024) {
+    let mut chunk_data: Vec<f64> = Vec::with_capacity(2048);
+    for chunk in window::Windower::hanning(&vector[..], 2048, 1024) {
         for d in chunk {
             chunk_data.push(d[0]);
         }
-        let pitch = try!(analyze_pitch(&chunk_data[..], maxima));
-        println!("pitch: {:?}", pitch[0]);
+        try!(analyze_pitch(&chunk_data[..], maxima));
         chunk_data.clear();
     }
     Ok(())
