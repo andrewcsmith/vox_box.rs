@@ -24,3 +24,4 @@ rustfft = "1.0"
 
 [features]
 nightly = []
+valgrind = ["nightly"]

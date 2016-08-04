@@ -1,6 +1,8 @@
-#![feature(alloc_system)]
+#![cfg_attr(feature = "valgrind", feature(alloc_system))]
 
+#[cfg(feature = "valgrind")]
 extern crate alloc_system;
+
 extern crate sample;
 extern crate vox_box;
 extern crate num;
