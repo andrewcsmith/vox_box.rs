@@ -60,7 +60,7 @@ pub fn find_formants<S>(buf: &[S], resample_factor: S, sample_rate: S, n_coeffs:
         resampled[idx] = s[0] * sample::window::Hanning::at_phase(S::from_sample(idx as f64 * len_inv));
     }
 
-    resampled.preemphasis(50f64 / sample_rate.to_sample::<f64>());
+    resampled.preemphasis(50f64 / new_sample_rate.to_sample::<f64>());
     resampled.autocorrelate_mut(&mut auto_coeffs[..]);
     let auto_coeffs_max = auto_coeffs[0];
     auto_coeffs.normalize_with_max(Some(auto_coeffs_max));
@@ -87,7 +87,7 @@ pub fn find_formants<S>(buf: &[S], resample_factor: S, sample_rate: S, n_coeffs:
         complex_lpc.find_roots_mut(&mut complex_work).expect("Problem finding roots.");
         // println!("roots: {:?}", complex_lpc);
         for root in complex_lpc.iter() {
-            match Resonance::from_root(root, sample_rate) {
+            match Resonance::from_root(root, new_sample_rate) {
                 Some(res) => {
                     resonances[count] = res; 
                     count += 1; 
