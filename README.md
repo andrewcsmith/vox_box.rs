@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/andrewcsmith/vox_box.rs.svg?branch=master)](https://travis-ci.org/andrewcsmith/vox_box.rs)
+
 # vox_box.rs 
 
 A tool to let you hack away at voice audio recordings in Rust.
