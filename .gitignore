@@ -1,0 +1,8 @@
+target-install/
+target/
+tmp/
+Cargo.lock
+*.swo
+tags
+Session.vim
+rusty-tags.vi
