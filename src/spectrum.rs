@@ -386,7 +386,7 @@ mod test {
         let res = roots.to_resonance(300f64);
         println!("Resonances: {:?}", res);
         assert!((res[0].frequency - 100.0).abs() < 1e-8);
-        assert!((res[0].bandwidth - 1.0).abs() < 1e-8);
+        assert!((res[0].bandwidth - 0.0).abs() < 1e-8);
     }
 
     #[test]
