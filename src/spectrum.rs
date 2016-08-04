@@ -96,14 +96,14 @@ impl<V: ?Sized, T> LPC<T> for V where
 #[repr(C)]
 pub struct Resonance<T> {
     pub frequency: T,
-    pub amplitude: T
+    pub bandwidth: T
 }
 
 impl<T> Resonance<T> {
-    pub fn new(f: T, a: T) -> Resonance<T> {
+    pub fn new(f: T, b: T) -> Resonance<T> {
         Resonance {
             frequency: f,
-            amplitude: a
+            bandwidth: b
         }
     }
 }
@@ -111,11 +111,13 @@ impl<T> Resonance<T> {
 impl<T: Float + FromPrimitive> Resonance<T> {
     pub fn from_root(root: &Complex<T>, sample_rate: T) -> Option<Resonance<T>> {
         let freq_mul: T = T::from_f64(sample_rate.to_f64().unwrap() / (PI * 2f64)).unwrap();
-        let invsqrt2 = T::from(1.0 / 2.0.sqrt()).unwrap();
+        let samp_interval: T = T::from(1.).unwrap() / sample_rate;
         if root.im >= T::zero() {
+            let (_, theta) = root.to_polar();
+            let r2 = root.norm_sqr();
             let res = Resonance::<T> { 
-                frequency: root.im.atan2(root.re) * freq_mul,
-                amplitude: (root.im.powi(2) + root.re.powi(2)).sqrt() * invsqrt2
+                frequency: freq_mul * theta,
+                bandwidth: freq_mul * r2.ln()
             };
             if res.frequency > T::one() {
                 Some(res)
@@ -384,7 +386,7 @@ mod test {
         let res = roots.to_resonance(300f64);
         println!("Resonances: {:?}", res);
         assert!((res[0].frequency - 100.0).abs() < 1e-8);
-        assert!((res[0].amplitude - 1.0).abs() < 1e-8);
+        assert!((res[0].bandwidth - 1.0).abs() < 1e-8);
     }
 
     #[test]
@@ -412,8 +414,8 @@ mod test {
             vec![100.0, 150.0, 200.0, 240.0, 300.0], 
             vec![110.0, 180.0, 210.0, 230.0, 310.0],
             vec![230.0, 270.0, 290.0, 350.0, 360.0]
-        ].iter().map(|z| z.iter().map(|r| Resonance::<f64> { frequency: *r, amplitude: 1. }).collect()).collect();
-        let estimates = vec![140., 230., 320.].iter().map(|r| Resonance::<f64> { frequency: *r, amplitude: 1. }).collect();
+        ].iter().map(|z| z.iter().map(|r| Resonance::<f64> { frequency: *r, bandwidth: 1. }).collect()).collect();
+        let estimates = vec![140., 230., 320.].iter().map(|r| Resonance::<f64> { frequency: *r, bandwidth: 1. }).collect();
 
         let mut extractor = FormantExtractor::new(3, resonances.iter().map(|r| &r[..]), estimates);
 

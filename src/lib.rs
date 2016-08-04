@@ -60,11 +60,12 @@ pub fn find_formants<S>(buf: &[S], resample_factor: S, sample_rate: S, n_coeffs:
         resampled[idx] = s[0] * sample::window::Hanning::at_phase(S::from_sample(idx as f64 * len_inv));
     }
 
-    resampled.preemphasis(75f64 / new_sample_rate.to_sample::<f64>());
+    resampled.preemphasis(50f64 / sample_rate.to_sample::<f64>());
     resampled.autocorrelate_mut(&mut auto_coeffs[..]);
     let auto_coeffs_max = auto_coeffs[0];
     auto_coeffs.normalize_with_max(Some(auto_coeffs_max));
 
+    // println!("auto_coeffs: {:?}", auto_coeffs);
     {
         // Use the workspace for the given scope only
         let mut solver = LPCSolver::new(n_coeffs, &mut work);

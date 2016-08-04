@@ -7,6 +7,7 @@ use sample;
 use sample::window::Window;
 use sample::{Sample, ToSampleSlice, FromSample};
 
+use std::collections::VecDeque;
 use std::f64::consts::PI;
 use std::f64::EPSILON;
 use std;
@@ -267,6 +268,20 @@ impl<T> Autocorrelate<T> for [T]
     }
 }
 
+impl<T> Autocorrelate<T> for VecDeque<T>
+    where T: Sample
+{
+    fn autocorrelate_mut(&self, coeffs: &mut [T]) {
+        for (lag, coeff) in coeffs.iter_mut().enumerate() {
+            let mut accum: T = self[0];
+            for (i, sample) in self.iter().enumerate().take(self.len() - lag).skip(1) {
+                accum = accum.add_amp(sample.mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample());
+            }
+            *coeff = accum;
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Pitch<T: Float> {
     pub frequency: T,
@@ -450,9 +465,9 @@ mod tests {
     fn test_pitch() {
         let exp_freq = 150.0;
         let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
-        let vector: Vec<[f64; 1]> = signal.take(4096 * 4).collect();
+        let vector: Vec<[f64; 1]> = signal.take(2048 + 1).collect();
         let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
-        for chunk in window::Windower::hanning(&vector[..], 4096, 1024) {
+        for chunk in window::Windower::hanning(&vector[..], 2048, 1024) {
             let chunk_data: Vec<[f64; 1]> = chunk.collect();
             let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, 0.05, maxima, maxima, 0.01, 100., 500.);
             println!("pitch: {:?}", pitch);
