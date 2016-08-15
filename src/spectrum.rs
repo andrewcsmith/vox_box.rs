@@ -113,16 +113,29 @@ impl<T: Float + FromPrimitive> Resonance<T> {
         let freq_mul: T = T::from_f64(sample_rate.to_f64().unwrap() / (PI * 2f64)).unwrap();
         let samp_interval: T = T::from(1.).unwrap() / sample_rate;
         if root.im >= T::zero() {
-            let (_, theta) = root.to_polar();
-            let r2 = root.norm_sqr();
+            let (mut r, mut theta) = root.to_polar();
+            // Reflect large roots around the unit circle
+            if r > T::one() {
+                let nrt = root.conj().inv().to_polar();
+                r = nrt.0; theta = nrt.1;
+            }
             let res = Resonance::<T> { 
                 frequency: freq_mul * theta,
-                bandwidth: freq_mul * r2.ln()
+                bandwidth: T::from(-2.).unwrap() * freq_mul * r.ln()
             };
-            if res.frequency > T::one() {
+
+            let safety = T::from(50.).unwrap();
+            let nyquist = sample_rate * T::from(0.5).unwrap();
+
+            // Keep roots away from the safety margin
+            if res.frequency > safety && res.frequency < nyquist - safety {
                 Some(res)
-            } else { None }
-        } else { None }
+            } else { 
+                None 
+            }
+        } else { 
+            None 
+        }
     }
 }
 
