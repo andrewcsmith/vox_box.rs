@@ -105,7 +105,7 @@ mod tests {
     use super::super::periodic::*;
 
     use sample::conv::ToSampleSlice;
-    use sample::window::{Hanning, Window};
+    use sample::window::Window;
 
     fn sine(len: usize) -> Vec<f64> {
         let rate = sample::signal::rate(len as f64).const_hz(1.0);

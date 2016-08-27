@@ -7,6 +7,8 @@ use sample;
 use sample::window::Window;
 use sample::{Sample, ToSampleSlice, FromSample};
 
+pub use sample::window::Hanning;
+
 use std::collections::VecDeque;
 use std::f64::consts::PI;
 use std::f64::EPSILON;
@@ -34,9 +36,12 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
 
     // simple cases
     if nx < 1 { return std::f64::NAN }
-    if x > nx as f64 { return y[nx as usize].to_float_sample().to_sample::<f64>() }
-    if x < 1. { return y[1].to_float_sample().to_sample::<f64>() }
-    if (x - nl as f64).abs() < EPSILON { return y[nl].to_float_sample().to_sample::<f64>() };
+    if x > nx as f64 { return y[offset as usize + nx as usize - 1].to_float_sample().to_sample::<f64>() }
+    if x < 0. { return y[0].to_float_sample().to_sample::<f64>() }
+    if (x - nl as f64).abs() < 1.0e-10 { return y[offset as usize + nl].to_float_sample().to_sample::<f64>() };
+    if (x - nr as f64).abs() < 1.0e-10 { return y[offset as usize + nr].to_float_sample().to_sample::<f64>() };
+
+    // println!("anything? {:?}, {:?}, {:?}", x, nl, nr);
 
     // Protect against usize underflow in indexing the lag vector
     if (offset + nr as isize) < max_depth as isize {
@@ -210,27 +215,27 @@ pub fn improve_extremum<S: Sample + FromSample<f64>>(y: &[S], offset: isize, nx:
     }
 }
 
-pub trait LagType: sample::window::Type {
-    type Lag: sample::window::Type;
-}
-
-pub struct HanningLag;
-
-impl sample::window::Type for HanningLag {
-    fn at_phase<S: Sample>(phase: S) -> S {
-        let pi_2 = (PI * 2.).to_sample();
-        let v: f64 = (phase.to_float_sample() * pi_2).to_sample::<f64>();
-        let one_third: S::Float = (1.0 / 3.0).to_sample();
-        let two_thirds: S::Float = (2.0 / 3.0).to_sample();
-        let one: S::Float = 1.0.to_sample();
-        ((one - phase.to_float_sample()) * (two_thirds + (one_third * v.cos().to_sample()).to_sample::<S::Float>()) 
-            + (one / pi_2) * v.sin().to_sample()).to_sample::<S>()
+    pub trait LagType: sample::window::Type {
+        type Lag: sample::window::Type;
     }
-}
 
-impl LagType for sample::window::Hanning {
-    type Lag = HanningLag;
-}
+    pub struct HanningLag;
+
+    impl sample::window::Type for HanningLag {
+        fn at_phase<S: Sample>(phase: S) -> S {
+            let pi_2 = (PI * 2.).to_sample();
+            let v: f64 = (phase.to_float_sample() * pi_2).to_sample::<f64>();
+            let one_third: S::Float = (1.0 / 3.0).to_sample();
+            let two_thirds: S::Float = (2.0 / 3.0).to_sample();
+            let one: S::Float = 1.0.to_sample();
+            ((one - phase.to_float_sample()) * (two_thirds + (one_third * v.cos().to_sample()).to_sample::<S::Float>()) 
+                + (one / pi_2) * v.sin().to_sample()).to_sample::<S>()
+        }
+    }
+
+    impl LagType for Hanning {
+        type Lag = HanningLag;
+    }
 
 /// Trait for things that can Autocorrelate. Implement the mutable version,
 /// which takes a slice of coefficients, and receive a version that allocates

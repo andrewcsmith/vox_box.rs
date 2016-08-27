@@ -9,6 +9,7 @@ use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
 use std::fmt::Debug;
 use std::cmp::Ordering;
+use std::iter::IntoIterator;
 
 pub struct LPCSolver<'a, T: 'a> {
     n_coeffs: usize,
@@ -49,12 +50,10 @@ impl<'a, T: 'a + Float> LPCSolver<'a, T> {
 pub trait LPC<T> {
     fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
     fn lpc(&self, n_coeffs: usize) -> Vec<T>;
+    fn lpc_praat(&self, n_coeffs: usize) -> Result<Vec<T>, &str>;
 }
 
-impl<V: ?Sized, T> LPC<T> for V where 
-    T: Float,
-    V: Index<usize, Output=T>
-{ 
+impl<T: Float> LPC<T> for [T] { 
     /// Calculates the LPCs, reusing slices of memory for workspace.
     ///
     /// ac: size must be at least `n_coeffs + 1`
@@ -89,6 +88,52 @@ impl<V: ?Sized, T> LPC<T> for V where
         let mut tmp: Vec<T> = vec![T::zero(); n_coeffs];
         self.lpc_mut(n_coeffs, &mut ac[..], &mut kc[..], &mut tmp[..]);
         ac
+    }
+
+    fn lpc_praat(&self, n_coeffs: usize) -> Result<Vec<T>, &str> {
+        let mut coeffs = vec![T::zero(); n_coeffs];
+        let mut b1 = vec![T::zero(); self.len()];
+        let mut b2 = vec![T::zero(); self.len()];
+        let mut aa = vec![T::zero(); n_coeffs];
+
+        b1[0] = self[0];
+        b2[self.len() - 2] = self[self.len() - 1];
+
+        for j in 2...(self.len() - 1){
+            b1[j - 1] = self[j - 1];
+            b2[j - 2] = self[j - 1];
+        }
+
+        for i in 1...n_coeffs {
+            let mut num = T::zero();
+            let mut denum = T::zero();
+            for j in 1...(self.len() - i) {
+                num = num + b1[j - 1] * b2[j - 1];
+                denum = denum + b1[j - 1].powi(2) + b2[j - 1].powi(2);
+            }
+            if denum <= T::zero() {
+                return Err("Denum was <= 0.0");
+            }
+            coeffs[i - 1] = T::from(2.0).unwrap() * num / denum;
+            for j in 1...(i - 1) {
+                coeffs[j - 1] = aa[j - 1] - coeffs[i - 1] * aa[i - j - 1];
+            }
+
+            if i < n_coeffs {
+                for j in 1...i {
+                    aa[j - 1] = coeffs[j - 1];
+                }
+                for j in 1...(self.len() - i - 1) {
+                    b1[j - 1] = b1[j-1] - aa[i - 1] * b2[j - 1];
+                    b2[j - 1] = b2[j] - aa[i - 1] * b1[j];
+                }
+            }
+        }
+
+        for c in coeffs.iter_mut() {
+            *c = *c * T::from(-1.0).unwrap();
+        }
+        Ok(coeffs)
     }
 }
 
@@ -356,7 +401,7 @@ impl<T: ?Sized> MFCC<T> for [T]
         let signal: Vec<Complex<T>> = self.iter().map(|e| Complex::<T>::from(e)).collect();
         fft.process(&signal, &mut spectrum);
 
-        let energies: Vec<T> = bins.windows(3).map(|window| {
+        let energy_map = |window: &[usize]| -> T {
             let up = window[1] - window[0];
 
             let up_sum = (window[0]..window[1]).enumerate().fold(0f64, |acc, (i, bin)| {
@@ -370,7 +415,9 @@ impl<T: ?Sized> MFCC<T> for [T]
                 acc + spectrum[bin].norm().to_f64().unwrap().abs() * multiplier
             });
             T::from_f64((up_sum + down_sum).log10()).unwrap_or(T::from_f32(1.0e-10).unwrap())
-        }).collect();
+        };
+
+        let energies: Vec<T> = bins.windows(3).map(&energy_map).collect();
 
         dct(&energies[..])
     }
@@ -387,6 +434,7 @@ mod test {
     use periodic::*;
     use sample::{window, ToSampleSlice};
     use num::Complex;
+    use polynomial::Polynomial;
 
     fn sine(len: usize) -> Vec<f64> {
         let rate = sample::signal::rate(len as f64).const_hz(1.0);
@@ -412,12 +460,49 @@ mod test {
         // Rust output:
         let lpc_exp = vec![1.0, -1.3122, 0.8660, -0.0875, -0.0103];
         let lpc = auto.lpc(4);
-        // println!("LPC coeffs: {:?}", &lpc);
+        println!("LPC coeffs: {:?}", &lpc);
         for (a, b) in auto.iter().zip(auto_exp.iter()) {
             assert![(a - b).abs() < 0.0001];
         }
         for (a, b) in lpc.iter().zip(lpc_exp.iter()) {
             assert![(a - b).abs() < 0.0001];
+        }
+    }
+
+    #[test]
+    fn test_sine_resonances_praat() {
+        let sine = sample::signal::rate(44100.).const_hz(440.).sine().take(512).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec();
+        let coeffs: Vec<f64> = sine.lpc_praat(4).unwrap();
+        println!("coeffs: {:?}", coeffs);
+        let complex_coeffs: Vec<Complex<f64>> = [1.].iter().chain(coeffs.iter()).rev().map(|c| Complex::<f64>::new(*c, 0.)).collect();
+        let roots = complex_coeffs.find_roots().unwrap();
+        let exp = [440.];
+        println!("roots: {:?}", roots);
+        for (root, e) in roots.iter().filter(|r| r.im > 1.0e-8).zip(exp.iter()) {
+            if root.im > 0. {
+                println!("root: {:?}", root);
+                match Resonance::from_root(root, 44100.) {
+                    Some(res) => {
+                        println!("res: {:?}", res);
+                        assert!((res.frequency - e).abs() < 4.0);
+                    }
+                    None => { }
+                }
+            }
+        }
+    }
+
+    #[test]
+    /// Source for this test received from the julia implementation
+    /// [here](http://www.jimblog.net/2014/02/lpcs-using-burg-method-in-julia.html).
+    fn test_lpc_praat() {
+        let source: Vec<f64> = (1..11).chain((1..11).rev()).map(|v| v as f64).collect();
+        let coeffs = source.lpc_praat(5).unwrap();
+        let exp = [-2.529731754197289, 2.6138925001574935, -1.6951059551991234, 0.7776548472652218, 0.15008712022777612];
+        println!("coeffs: {:?}", coeffs);
+        assert_eq!(coeffs.len(), exp.len());
+        for (r, e) in coeffs.iter().zip(exp.iter()) {
+            assert!((r - e).abs() < 1.0e-10);
         }
     }
 
@@ -494,6 +579,26 @@ mod test {
         println!("dcts: {:?}", &dcts);
         for pair in dcts.iter().zip(exp.iter()) {
             assert!(pair.0 - pair.1 < 1.0e-5);
+        }
+    }
+
+    #[test]
+    fn test_resonances_from_coeffs() {
+        // this is exactly what lpc_praat should spit out for a given frame
+        let coeffs: Vec<f64> = vec![-0.80098309, 1.20869679, -1.61846677, 0.86630291, -1.44203292,  0.93621726, -0.58772811,  0.65949051];
+        let complex_coeffs: Vec<Complex<f64>> = [1.].iter().chain(coeffs.iter()).rev().map(|c| Complex::<f64>::new(*c, 0.)).collect();
+        let roots = complex_coeffs.find_roots().unwrap();
+        let exp = [251.770, 2289.634, 3037.846, 4045.196];
+        for (root, e) in roots.iter().zip(exp.iter()) {
+            if root.im > 0.0 {
+                match Resonance::from_root(root, 11025.) {
+                    Some(res) => {
+                        println!("res: {:?}", res);
+                        assert!((res.frequency - e).abs() < 1.0);
+                    }
+                    None => { }
+                }
+            }
         }
     }
 }

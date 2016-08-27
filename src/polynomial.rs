@@ -3,7 +3,6 @@ extern crate num;
 use std::f32;
 use std::ops::Neg;
 use std::iter::*;
-use std::fmt::Debug;
 
 use num::{Float, Num, Zero, One, FromPrimitive, Complex};
 
@@ -21,7 +20,7 @@ pub trait Polynomial<'a, T> {
 }
 
 impl<'a, T> Polynomial<'a, T> for [Complex<T>] 
-    where T: Float + FromPrimitive + Debug
+    where T: Float + FromPrimitive
 {
     fn degree(&self) -> usize {
         self.iter().rposition(|r| r != &Complex::<T>::zero()).unwrap_or(0)

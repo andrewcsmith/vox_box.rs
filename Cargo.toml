@@ -1,6 +1,6 @@
 [package]
 name = "vox_box"
-version = "0.2.1"
+version = "0.2.0"
 authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 include = ["src/**/*.rs", "Cargo.toml"]
 description = "A tool to process speech audio in Rust"
@@ -22,9 +22,5 @@ sample = "0.6.1"
 libc = "0.2"
 rustfft = "1.0"
 
-[dev-dependencies]
-hound = "1.1.0"
-
 [features]
 nightly = []
-valgrind = ["nightly"]
