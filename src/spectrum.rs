@@ -498,10 +498,11 @@ mod test {
     fn test_lpc_praat() {
         let source: Vec<f64> = (1..11).chain((1..11).rev()).map(|v| v as f64).collect();
         let coeffs = source.lpc_praat(5).unwrap();
-        let exp = [-2.529731754197289, 2.6138925001574935, -1.6951059551991234, 0.7776548472652218, 0.15008712022777612];
+        let exp = [-2.529731754197289, 2.6138925001574935, -1.6951059551991234, 0.7776548472652218, -0.15008712022777612];
         println!("coeffs: {:?}", coeffs);
         assert_eq!(coeffs.len(), exp.len());
         for (r, e) in coeffs.iter().zip(exp.iter()) {
+            println!("r, e: \n{}\n{}", &r, &e);
             assert!((r - e).abs() < 1.0e-10);
         }
     }
