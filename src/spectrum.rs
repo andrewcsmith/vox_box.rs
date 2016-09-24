@@ -414,7 +414,7 @@ impl<T: ?Sized> MFCC<T> for [T]
                 let multiplier = i as f64 / down as f64;
                 acc + spectrum[bin].norm().to_f64().unwrap().abs() * multiplier
             });
-            T::from_f64((up_sum + down_sum).log10()).unwrap_or(T::from_f32(1.0e-10).unwrap())
+            T::from_f64((up_sum + down_sum).log10().max(1.0e-10)).unwrap_or(T::from_f32(1.0e-10).unwrap())
         };
 
         let energies: Vec<T> = bins.windows(3).map(&energy_map).collect();
@@ -570,6 +570,18 @@ mod test {
         }
         let mfccs = vec.mfcc(26, (133., 6855.), 22_050.);
         println!("mfccs: {:?}", mfccs);
+    }
+
+    #[test]
+    fn test_mfcc_not_nan() {
+        use num::Float;
+        let vec = vec![0.; 512];
+        let mfccs = vec.mfcc(13, (100., 8000.), 22_050.);
+        for coeff in mfccs.iter() {
+            println!("{}", coeff);
+            assert!(!coeff.is_nan());
+            assert!(!coeff.is_infinite());
+        }
     }
 
     #[test]
