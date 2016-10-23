@@ -1,0 +1,12 @@
+[package]
+name = "formant_extractor"
+version = "0.1.0"
+authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
+
+[dependencies]
+num = "*"
+hound = "2.0.0"
+sample = { path = "/Users/acsmith/workspaces/rust/sample" }
+vox_box = { path = "../.." }
+rustfft = "1.0"
+
