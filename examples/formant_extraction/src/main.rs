@@ -13,7 +13,7 @@ use vox_box::spectrum::Resonance;
 use sample::{Sample, window, ToFrameSlice, ToSampleSlice};
 use num::Complex;
 
-/// Prints the RMS, followed by the center frequency and bandwidth of 5 formants
+/// Prints the time stamp, then RMS, followed by the center frequency and bandwidth of 5 formants
 ///
 /// Call the following to see the output plotted as a figure (requires gnuplot)
 ///
@@ -36,30 +36,29 @@ fn go() -> Result<(), Box<Error>> {
 
     let sample_rate = reader.spec().sample_rate as f64;
     let new_sample_rate = 10000.0;
+    let resampled_len = (samples.len() as f64 * (new_sample_rate / sample_rate)).floor() as usize;
+    let mut resampled = vec![0f64; resampled_len];
+    let resample_factor = samples.len() as f64 / resampled_len as f64;
 
-    let mut resampled = vec![0f64; (samples.len() as f64 * (new_sample_rate / sample_rate)).floor() as usize];
-
+    // Parameters for the sinc interpolation
     let depth = 50;
     let brent_ixmax = samples.len() - depth;
     let offset = -(brent_ixmax as isize) - 1;
     let nx = (brent_ixmax as isize - offset) as usize;
 
-    let resampled_len = resampled.len();
     for (idx, r) in resampled.iter_mut().enumerate() {
-        let n = samples.len() as f64 * (idx as f64 / resampled_len as f64);
+        let n = resample_factor * idx;
         *r = vox_box::periodic::interpolate_sinc(
             &samples[..], offset, nx, (n - offset as f64).to_sample::<f64>(), depth)
             .to_sample::<f64>();
     }
 
-    let resample_factor = 1.0;
     let n_coeffs = 13;
     let bin = (new_sample_rate * 0.05).ceil() as usize;
     let hop = (new_sample_rate * 0.01).ceil() as usize;
 
     println!("# bin: {}, hop: {}", bin, hop);
 
-    // let resampled_len = (bin as f64 / resample_factor) as usize + 1;
     let mut work = vec![0f64; vox_box::find_formants_real_work_size(resampled_len, n_coeffs)];
     let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 

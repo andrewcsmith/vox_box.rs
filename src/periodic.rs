@@ -41,25 +41,30 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
     if (x - nl as f64).abs() < 1.0e-10 { return y[offset as usize + nl].to_float_sample().to_sample::<f64>() };
     if (x - nr as f64).abs() < 1.0e-10 { return y[offset as usize + nr].to_float_sample().to_sample::<f64>() };
 
-    // println!("anything? {:?}, {:?}, {:?}", x, nl, nr);
-
     // Protect against usize underflow in indexing the lag vector
+    // Clip max_depth to offset + nr at the lowest point
     if (offset + nr as isize) < max_depth as isize {
         max_depth = (offset + nr as isize) as usize;
     }
 
+    // Clip max_depth to nx - offset + nl - 1 at the highest point
     if (offset + nl as isize + max_depth as isize) >= nx as isize {
         max_depth = (nx as isize - offset + nl as isize - 1) as usize;
     }
 
     for n in 0..(max_depth+1) {
+        // Sum the values to the left of the sample
         result += {
+            // a is PI * (the scalar + nsamp away from the source)
             let a = PI * (phil + n as f64);
+            // each element
             let r_lag = y[(offset as i32 + nr as i32 - n as i32) as usize].to_float_sample().to_sample::<f64>();
+            // this is sinc
             let first = a.sin() / a;
             let second = 0.5 + 0.5 * (a / (phil + max_depth as f64)).cos();
             r_lag * first * second
         };
+        // Sum the values to the right of the sample
         result += {
             let a = PI * (phir + n as f64);
             let r_lag = y[(offset as i32 + nl as i32 + n as i32) as usize].to_float_sample().to_sample::<f64>();

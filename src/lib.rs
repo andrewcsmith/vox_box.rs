@@ -14,7 +14,6 @@ pub mod waves;
 
 use sample::Sample;
 use sample::conv::Duplex;
-use sample::rate::Converter;
 use sample::slice::to_frame_slice;
 use sample::window::Type;
 
