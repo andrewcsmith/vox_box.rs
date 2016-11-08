@@ -5,12 +5,12 @@ extern crate num;
 extern crate rustfft;
 
 use std::error::Error;
-use std::i32;
+use std::{i32, i16};
 
 use hound::WavReader;
-use vox_box::waves::*;
 use vox_box::spectrum::Resonance;
-use sample::{Sample, window, ToFrameSlice, ToSampleSlice};
+use sample::window;
+use sample::interpolate::{Sinc, Converter};
 use num::Complex;
 
 /// Prints the time stamp, then RMS, followed by the center frequency and bandwidth of 5 formants
@@ -30,28 +30,15 @@ use num::Complex;
 /// ```
 fn go() -> Result<(), Box<Error>> {
     let mut reader = try!(WavReader::open("./sample-two_vowels.wav"));
-    let samples: Vec<f64> = reader.samples::<i32>().map(|sample| {
-        sample.unwrap() as f64 / (i32::MAX >> 8) as f64
+    let samples: Vec<[f64; 1]> = reader.samples::<i32>().map(|sample| {
+        [sample.unwrap() as f64 / (i32::MAX >> 8) as f64]
     }).collect();
 
     let sample_rate = reader.spec().sample_rate as f64;
     let new_sample_rate = 10000.0;
-    let resampled_len = (samples.len() as f64 * (new_sample_rate / sample_rate)).floor() as usize;
-    let mut resampled = vec![0f64; resampled_len];
-    let resample_factor = samples.len() as f64 / resampled_len as f64;
-
-    // Parameters for the sinc interpolation
-    let depth = 50;
-    let brent_ixmax = samples.len() - depth;
-    let offset = -(brent_ixmax as isize) - 1;
-    let nx = (brent_ixmax as isize - offset) as usize;
-
-    for (idx, r) in resampled.iter_mut().enumerate() {
-        let n = resample_factor * idx;
-        *r = vox_box::periodic::interpolate_sinc(
-            &samples[..], offset, nx, (n - offset as f64).to_sample::<f64>(), depth)
-            .to_sample::<f64>();
-    }
+    let sinc = Sinc::new(50, samples.iter().cloned());
+    let conv = Converter::scale_sample_hz(samples.iter().cloned(), sinc, new_sample_rate / sample_rate);
+    let resampled: Vec<[f64; 1]> = conv.collect();
 
     let n_coeffs = 13;
     let bin = (new_sample_rate * 0.05).ceil() as usize;
@@ -59,7 +46,7 @@ fn go() -> Result<(), Box<Error>> {
 
     println!("# bin: {}, hop: {}", bin, hop);
 
-    let mut work = vec![0f64; vox_box::find_formants_real_work_size(resampled_len, n_coeffs)];
+    let mut work = vec![0f64; vox_box::find_formants_real_work_size(resampled.len(), n_coeffs)];
     let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 
     let mut formants: Vec<Resonance<f64>> = vox_box::MALE_FORMANT_ESTIMATES.iter().map(|f| Resonance::new(*f, 1.0)).collect();
