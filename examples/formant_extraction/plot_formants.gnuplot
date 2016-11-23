@@ -170,5 +170,4 @@ ARGC = 0
 ARG0 = ""
 x = 0.0
 ## Last datafile plotted: "output.txt"
-plot 'output.txt' using 1:10 with lines title 'rms', '' using 1:2 with points axes x1y2 title 'f1', '' using 1:4 with points axes x1y2 title 'f2', '' using 1:6 with points axes x1y2 title 'f3', '' using 1:8 with points axes x1y2 title 'f4'#, '' using 1:10 with points axes x1y2 title 'f5', '' using 1:12 with points axes x1y2 title 'f6'
-#    EOF
+plot 'output.txt' using 1:10 with lines title 'rms', '' using 1:2 with points axes x1y2 title 'f1', '' using 1:4 with points axes x1y2 title 'f2', '' using 1:6 with points axes x1y2 title 'f3', '' using 1:8 with points axes x1y2 title 'f4', '' using 1:11 with points axes x1y2 title 'pitch' #, '' using 1:10 with points axes x1y2 title 'f5', '' using 1:12 with points axes x1y2 title 'f6' #    EOF
