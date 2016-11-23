@@ -363,7 +363,7 @@ impl<S> LocalMaxima<S> for [S]
 }
 
 impl<S, T> Pitched<S, T> for [S]
-    where S: Sample + FromSample<f64> + std::fmt::Debug, 
+    where S: Sample + FromSample<f64>, 
           S::Float: ToPrimitive,
           T: Float + FromPrimitive
 {
