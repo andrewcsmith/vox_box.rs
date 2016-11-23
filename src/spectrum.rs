@@ -99,15 +99,15 @@ impl<T: Float> LPC<T> for [T] {
         b1[0] = self[0];
         b2[self.len() - 2] = self[self.len() - 1];
 
-        for j in 2...(self.len() - 1){
+        for j in 2..self.len() {
             b1[j - 1] = self[j - 1];
             b2[j - 2] = self[j - 1];
         }
 
-        for i in 1...n_coeffs {
+        for i in 1..(n_coeffs + 1) {
             let mut num = T::zero();
             let mut denum = T::zero();
-            for j in 1...(self.len() - i) {
+            for j in 1..(self.len() - i + 1) {
                 num = num + b1[j - 1] * b2[j - 1];
                 denum = denum + b1[j - 1].powi(2) + b2[j - 1].powi(2);
             }
@@ -115,15 +115,15 @@ impl<T: Float> LPC<T> for [T] {
                 return Err("Denum was <= 0.0");
             }
             coeffs[i - 1] = T::from(2.0).unwrap() * num / denum;
-            for j in 1...(i - 1) {
+            for j in 1..i {
                 coeffs[j - 1] = aa[j - 1] - coeffs[i - 1] * aa[i - j - 1];
             }
 
             if i < n_coeffs {
-                for j in 1...i {
+                for j in 1..(i + 1) {
                     aa[j - 1] = coeffs[j - 1];
                 }
-                for j in 1...(self.len() - i - 1) {
+                for j in 1..(self.len() - i) {
                     b1[j - 1] = b1[j-1] - aa[i - 1] * b2[j - 1];
                     b2[j - 1] = b2[j] - aa[i - 1] * b1[j];
                 }

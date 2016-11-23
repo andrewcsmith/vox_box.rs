@@ -1,5 +1,3 @@
-#![feature(inclusive_range_syntax)]
-
 extern crate num;
 extern crate rand;
 extern crate sample;
