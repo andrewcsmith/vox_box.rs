@@ -220,27 +220,27 @@ pub fn improve_extremum<S: Sample + FromSample<f64>>(y: &[S], offset: isize, nx:
     }
 }
 
-    pub trait LagType: sample::window::Type {
-        type Lag: sample::window::Type;
-    }
+pub trait LagType: sample::window::Type {
+    type Lag: sample::window::Type;
+}
 
-    pub struct HanningLag;
+pub struct HanningLag;
 
-    impl sample::window::Type for HanningLag {
-        fn at_phase<S: Sample>(phase: S) -> S {
-            let pi_2 = (PI * 2.).to_sample();
-            let v: f64 = (phase.to_float_sample() * pi_2).to_sample::<f64>();
-            let one_third: S::Float = (1.0 / 3.0).to_sample();
-            let two_thirds: S::Float = (2.0 / 3.0).to_sample();
-            let one: S::Float = 1.0.to_sample();
-            ((one - phase.to_float_sample()) * (two_thirds + (one_third * v.cos().to_sample()).to_sample::<S::Float>()) 
-                + (one / pi_2) * v.sin().to_sample()).to_sample::<S>()
-        }
+impl sample::window::Type for HanningLag {
+    fn at_phase<S: Sample>(phase: S) -> S {
+        let pi_2 = (PI * 2.).to_sample();
+        let v: f64 = (phase.to_float_sample() * pi_2).to_sample::<f64>();
+        let one_third: S::Float = (1.0 / 3.0).to_sample();
+        let two_thirds: S::Float = (2.0 / 3.0).to_sample();
+        let one: S::Float = 1.0.to_sample();
+        ((one - phase.to_float_sample()) * (two_thirds + (one_third * v.cos().to_sample()).to_sample::<S::Float>()) 
+            + (one / pi_2) * v.sin().to_sample()).to_sample::<S>()
     }
+}
 
-    impl LagType for Hanning {
-        type Lag = HanningLag;
-    }
+impl LagType for Hanning {
+    type Lag = HanningLag;
+}
 
 /// Trait for things that can Autocorrelate. Implement the mutable version,
 /// which takes a slice of coefficients, and receive a version that allocates
