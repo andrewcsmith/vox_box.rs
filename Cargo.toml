@@ -1,6 +1,6 @@
 [package]
 name = "vox_box"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 include = ["src/**/*.rs", "Cargo.toml"]
 description = "A tool to process speech audio in Rust"
