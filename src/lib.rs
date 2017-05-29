@@ -50,8 +50,6 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, n_coeffs: usize, work: &m
     let (mut lpc_coeffs, mut work) = work.split_at_mut(n_coeffs);
     let (mut auto_coeffs, mut work) = work.split_at_mut(n_coeffs + 2);
 
-    buf.preemphasis(50f64 / sample_rate.to_sample::<f64>());
-
     let len_inv = 1f64 / buf.len() as f64;
     for (idx, s) in buf.iter_mut().enumerate() {
         let window = sample::window::Hanning::at_phase(S::from_sample(idx as f64 * len_inv));

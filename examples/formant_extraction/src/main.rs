@@ -15,6 +15,7 @@ use sample::{window, ToSampleSliceMut, ToSampleSlice};
 use sample::signal::Signal;
 use sample::interpolate::{Sinc, Converter, Linear};
 use num::Complex;
+use clap;
 
 /// Prints the time stamp, then RMS, followed by the center frequency and bandwidth of 5 formants
 ///

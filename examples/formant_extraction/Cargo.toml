@@ -9,4 +9,5 @@ hound = "2.0.0"
 sample = { path = "/Users/acsmith/workspaces/rust/sample" }
 vox_box = { path = "../.." }
 rustfft = "1.0"
+clap = "*"
 

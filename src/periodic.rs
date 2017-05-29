@@ -381,7 +381,6 @@ impl<S, T> Pitched<S, T> for [S]
     ///
     /// A third pass, using PitchExtractor, should find a path through these candidates that
     /// maximizes both the smoothness of the pitch contour and the strength of the pitches.
-    #[inline(never)]
     // TODO: need 2 empty mutable Vecs, 
     // self_lag: [T; 2*self.len()]
     // maxima: [Pitch<T>; max_maxima], theoretically could be up to (0.5 * self.len()).ceil()
