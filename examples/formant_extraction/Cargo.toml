@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 
 [dependencies]
-num = "*"
+num = "0.1"
 hound = "2.0.0"
 sample = { path = "/Users/acsmith/workspaces/rust/sample" }
 vox_box = { path = "../.." }

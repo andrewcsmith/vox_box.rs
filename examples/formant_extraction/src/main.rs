@@ -3,6 +3,7 @@ extern crate sample;
 extern crate vox_box;
 extern crate num;
 extern crate rustfft;
+extern crate clap;
 
 use std::error::Error;
 use std::i32;
@@ -15,7 +16,6 @@ use sample::{window, ToSampleSliceMut, ToSampleSlice};
 use sample::signal::Signal;
 use sample::interpolate::{Sinc, Converter, Linear};
 use num::Complex;
-use clap;
 
 /// Prints the time stamp, then RMS, followed by the center frequency and bandwidth of 5 formants
 ///
@@ -44,9 +44,11 @@ fn go() -> Result<(), Box<Error>> {
     });
 
     let new_sample_rate = 10000.0;
-    let sinc = Sinc::new(50, &mut samples);
-    let sig = samples.from_hz_to_hz(sinc, sample_rate, new_sample_rate);
-    let len_upper_bound = sig.size_hint().1.unwrap();
+    let resample_ratio = new_sample_rate / sample_rate;
+    // let sinc = Sinc::new(50, &mut samples);
+    // let linear = Linear::new(samples.next().unwrap(), samples.next().unwrap());
+    // let sig = samples.from_hz_to_hz(linear, sample_rate, new_sample_rate);
+    // let len_upper_bound = sig.size_hint().1.unwrap();
 
     let n_coeffs = 13;
     let bin = (new_sample_rate * 0.05).ceil() as usize;
@@ -54,7 +56,7 @@ fn go() -> Result<(), Box<Error>> {
 
     println!("# bin: {}, hop: {}", bin, hop);
 
-    let mut work = vec![0f64; vox_box::find_formants_real_work_size(len_upper_bound, n_coeffs)];
+    let mut work = vec![0f64; vox_box::find_formants_real_work_size((resample_ratio * samples.len() as f64).ceil() as usize, n_coeffs)];
     let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 
     let mut formants: Vec<Resonance<f64>> = vox_box::MALE_FORMANT_ESTIMATES.iter().map(|f| Resonance::new(*f, 1.0)).collect();
@@ -63,15 +65,17 @@ fn go() -> Result<(), Box<Error>> {
     let mut powers: Vec<f64> = Vec::new();
     let mut pitches: Vec<f64> = Vec::new();
 
-    let mut frames: Vec<[f64; 1]> = sig.collect();
+    let mut frames: Vec<[f64; 1]> = samples.collect();
 
-    for frame in window::Windower::hanning(&frames[..], bin, hop) {
+    for frame in window::Windower::rectangle(&frames[..], bin, hop) {
         for s in frame { 
             frame_buffer.push(s[0]); 
         }
         let pitch: f64 = frame_buffer.to_sample_slice().pitch::<Hanning>(new_sample_rate, 0.2, 0.05, 1.0, 1.0, 1.0, 50., 200.)[0].frequency;
+        let mut resample_buf: Vec<f64> = vec![0f64; (resample_ratio * frame_buffer.len() as f64).ceil() as usize];
 
         vox_box::find_formants(&mut frame_buffer[..], new_sample_rate, 
+                               resample_ratio, &mut resample_buf[..],
                                n_coeffs, &mut work[..], &mut complex_work[..],
                                &mut formants[..]).unwrap();
         all_formants.push(formants.clone());
