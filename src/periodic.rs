@@ -57,8 +57,10 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
         result += {
             // a is PI * (the scalar + nsamp away from the source)
             let a = PI * (phil + n as f64);
+            let mut lag_val = (offset as i32 + nr as i32 - n as i32);
+            if lag_val < 0 { lag_val = 0; }
             // each element
-            let r_lag = y[(offset as i32 + nr as i32 - n as i32) as usize].to_float_sample().to_sample::<f64>();
+            let r_lag = y[lag_val as usize].to_float_sample().to_sample::<f64>();
             // this is sinc
             let first = a.sin() / a;
             let second = 0.5 + 0.5 * (a / (phil + max_depth as f64)).cos();
@@ -67,7 +69,10 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
         // Sum the values to the right of the sample
         result += {
             let a = PI * (phir + n as f64);
-            let r_lag = y[(offset as i32 + nl as i32 + n as i32) as usize].to_float_sample().to_sample::<f64>();
+            let mut lag_val = (offset as i32 + nl as i32 + n as i32);
+            if lag_val < 0 { lag_val = 0; }
+            if lag_val >= y.len() as i32 { lag_val = y.len() as i32 - 1; }
+            let r_lag = y[lag_val as usize].to_float_sample().to_sample::<f64>();
             let first = a.sin() / a;
             let second = 0.5 + 0.5 * (a / (phir + max_depth as f64)).cos();
             r_lag * first * second

@@ -13,7 +13,9 @@ pub mod waves;
 use sample::Sample;
 use sample::conv::Duplex;
 use sample::slice::to_frame_slice;
+use sample::{ToFrameSlice};
 use sample::window::Type;
+use sample::interpolate::{Linear, Converter};
 
 use spectrum::{LPC, LPCSolver, Resonance, EstimateFormants};
 use polynomial::Polynomial;
@@ -29,7 +31,7 @@ pub const MALE_FORMANT_ESTIMATES: [f64; 4] = [320., 1440., 2760., 3200.];
 pub const FEMALE_FORMANT_ESTIMATES: [f64; 4] = [480., 1760., 3200., 3520.];
 
 pub fn find_formants_real_work_size(buf_len: usize, n_coeffs: usize) -> usize {
-    buf_len + n_coeffs * 22 + 2
+    buf_len * 2 + n_coeffs * 23 + 2
 }
 
 pub fn find_formants_complex_work_size(n_coeffs: usize) -> usize {
@@ -38,7 +40,7 @@ pub fn find_formants_complex_work_size(n_coeffs: usize) -> usize {
 
 /// Calculates the next frame of formants based on given estimates. The user must provide
 /// sufficient workspace to carry out these calculations.
-pub fn find_formants<S>(buf: &mut [S], sample_rate: S, n_coeffs: usize, work: &mut [S], complex_work: &mut [Complex<S>], formants: &mut [Resonance<S>]) 
+pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resampled_buf: &mut [S], n_coeffs: usize, work: &mut [S], complex_work: &mut [Complex<S>], formants: &mut [Resonance<S>]) 
     -> Result<(), &'static str> 
     where S: Sample + Duplex<f64> + Float + FromPrimitive
 {
@@ -46,17 +48,30 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, n_coeffs: usize, work: &m
         return Err("Not enough workspace allocated");
     }
 
+    let resampled_len = (resample_ratio * buf.len() as f64).ceil() as usize; 
+    assert!(resampled_len <= resampled_buf.len());
     let mut resonances = [Resonance::new(0f64.to_sample::<S>(), 0f64.to_sample::<S>()); MAX_RESONANCES];
     let (mut lpc_coeffs, mut work) = work.split_at_mut(n_coeffs);
-    let (mut auto_coeffs, mut work) = work.split_at_mut(n_coeffs + 2);
+    if resample_ratio != 1.0 {
+        let mut buf_iter = buf.iter().map(|b| [*b]);
+        let linear = Linear::new(buf_iter.next().unwrap(), buf_iter.next());
+        let sig = Converter::scale_sample_hz(buf_iter, linear, resample_ratio);
+        for (r, s) in resampled_buf.iter_mut().zip(sig) { *r = s[0]; }
+    } else {
+        for (r, s) in resampled_buf.iter_mut().zip(buf.iter()) { *r = *s; }
+    }
 
-    let len_inv = 1f64 / buf.len() as f64;
-    for (idx, s) in buf.iter_mut().enumerate() {
+    let len_inv = 1f64 / resampled_len as f64;
+    for (idx, s) in resampled_buf.iter_mut().enumerate() {
         let window = sample::window::Hanning::at_phase(S::from_sample(idx as f64 * len_inv));
         *s = *s * window;
     }
 
-    let lpc_coeffs = buf.lpc_praat(n_coeffs).expect("Problem resolving LPC");
+    let (mut lpc_work, mut work) = work.split_at_mut(resampled_buf.len() * 2 + n_coeffs);
+    let (mut auto_coeffs, mut work) = work.split_at_mut(n_coeffs + 2);
+
+    resampled_buf.lpc_praat_mut(n_coeffs, &mut lpc_coeffs, &mut lpc_work)
+        .expect("Problem resolving LPC");
     let one = [1.0.to_sample::<S>()];
 
     let resonances = {
@@ -70,7 +85,8 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, n_coeffs: usize, work: &m
             }
         }
         
-        complex_lpc.find_roots_mut(&mut complex_work).expect("Problem finding roots.");
+        complex_lpc.find_roots_mut(&mut complex_work)
+            .expect("Problem finding roots.");
         for root in complex_lpc.iter() {
             if root.im > 0.0.to_sample::<S>() {
                 match Resonance::from_root(root, sample_rate) {

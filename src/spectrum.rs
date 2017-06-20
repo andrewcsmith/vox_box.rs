@@ -50,6 +50,7 @@ impl<'a, T: 'a + Float> LPCSolver<'a, T> {
 pub trait LPC<T> {
     fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
     fn lpc(&self, n_coeffs: usize) -> Vec<T>;
+    fn lpc_praat_mut(&self, n_coeffs: usize, coeffs: &mut [T], work: &mut [T]) -> Result<(), &str>;
     fn lpc_praat(&self, n_coeffs: usize) -> Result<Vec<T>, &str>;
 }
 
@@ -92,9 +93,17 @@ impl<T: Float> LPC<T> for [T] {
 
     fn lpc_praat(&self, n_coeffs: usize) -> Result<Vec<T>, &str> {
         let mut coeffs = vec![T::zero(); n_coeffs];
-        let mut b1 = vec![T::zero(); self.len()];
-        let mut b2 = vec![T::zero(); self.len()];
-        let mut aa = vec![T::zero(); n_coeffs];
+        let mut work = vec![T::zero(); self.len() * 2 + n_coeffs];
+        self.lpc_praat_mut(n_coeffs, &mut coeffs[..], &mut work[..])
+            .map(|_| coeffs.to_vec())
+    }
+
+    fn lpc_praat_mut(&self, n_coeffs: usize, coeffs: &mut [T], work: &mut [T]) -> Result<(), &str> {
+        assert!(coeffs.len() >= n_coeffs);
+        assert!(work.len() >= (self.len() * 2 + n_coeffs));
+        let (mut b1, mut work) = work.split_at_mut(self.len());
+        let (mut b2, mut work) = work.split_at_mut(self.len());
+        let (mut aa, mut work) = work.split_at_mut(n_coeffs);
 
         b1[0] = self[0];
         b2[self.len() - 2] = self[self.len() - 1];
@@ -133,7 +142,7 @@ impl<T: Float> LPC<T> for [T] {
         for c in coeffs.iter_mut() {
             *c = *c * T::from(-1.0).unwrap();
         }
-        Ok(coeffs)
+        Ok(())
     }
 }
 

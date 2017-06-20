@@ -29,9 +29,12 @@ fn test_against_praat() {
     let sample_rate = reader.spec().sample_rate as f64;
     let mut work = vec![0f64; vox_box::find_formants_real_work_size(segment.len(), n_coeffs)];
     let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
+    let resample_ratio = 1.0;
+    let mut resampled_buf = [0f64; 0];
 
     let mut formants: Vec<Resonance<f64>> = vox_box::MALE_FORMANT_ESTIMATES.iter().map(|f| Resonance::new(*f, 1.0)).collect();
     vox_box::find_formants(&mut samples[..], sample_rate,
+                           resample_ratio, &mut resampled_buf[..],
                            n_coeffs, &mut work[..], &mut complex_work[..],
                            &mut formants[..]);
     println!("formants: {:?}", formants);
@@ -61,12 +64,15 @@ fn test_formant_calculation() {
     let mut powers: Vec<f64> = Vec::new();
 
     let sample_frames: &[[f64; 1]] = sample::slice::to_frame_slice(&samples[..]).unwrap();
+    let resample_ratio = 1.0;
+    let mut resampled_buf = [0f64; 0];
 
     for frame in window::Windower::rectangle(sample_frames, bin, hop) {
         for s in frame { 
             frame_buffer.push(s[0]); 
         }
         vox_box::find_formants(&mut frame_buffer[..], sample_rate, 
+                               resample_ratio, &mut resampled_buf[..],
                                n_coeffs, &mut work[..], &mut complex_work[..],
                                &mut formants[..]);
         all_formants.push(formants.clone());
