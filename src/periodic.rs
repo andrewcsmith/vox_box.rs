@@ -274,11 +274,12 @@ impl<T> Autocorrelate<T> for [T]
 {
     fn autocorrelate_mut(&self, coeffs: &mut [T]) {
         for (lag, coeff) in coeffs.iter_mut().enumerate() {
-            let mut accum: T = self[0];
-            for (i, sample) in self.iter().enumerate().take(self.len() - lag).skip(1) {
-                accum = accum.add_amp(sample.mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample());
-            }
-            *coeff = accum;
+            *coeff = self.iter().enumerate()
+                .take(self.len() - lag)
+                .skip(1)
+                .fold(self[0], |accum, (i, sample)| { 
+                    accum.add_amp(sample.mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample())
+                });
         }
     }
 }
@@ -288,11 +289,12 @@ impl<T> Autocorrelate<T> for VecDeque<T>
 {
     fn autocorrelate_mut(&self, coeffs: &mut [T]) {
         for (lag, coeff) in coeffs.iter_mut().enumerate() {
-            let mut accum: T = self[0];
-            for (i, sample) in self.iter().enumerate().take(self.len() - lag).skip(1) {
-                accum = accum.add_amp(sample.mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample());
-            }
-            *coeff = accum;
+            *coeff = self.iter().enumerate()
+                .take(self.len() - lag)
+                .skip(1)
+                .fold(self[0], |accum, (i, sample)| { 
+                    accum.add_amp(sample.mul_amp(self[(i + lag) as usize].to_float_sample()).to_signed_sample())
+                });
         }
     }
 }
