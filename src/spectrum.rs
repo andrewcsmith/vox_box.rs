@@ -11,6 +11,8 @@ use std::fmt::Debug;
 use std::cmp::Ordering;
 use std::iter::IntoIterator;
 
+use error::*;
+
 pub struct LPCSolver<'a, T: 'a> {
     n_coeffs: usize,
     ac: &'a mut [T],
@@ -50,8 +52,8 @@ impl<'a, T: 'a + Float> LPCSolver<'a, T> {
 pub trait LPC<T> {
     fn lpc_mut(&self, n_coeffs: usize, ac: &mut [T], kc: &mut [T], tmp: &mut [T]);
     fn lpc(&self, n_coeffs: usize) -> Vec<T>;
-    fn lpc_praat_mut(&self, n_coeffs: usize, coeffs: &mut [T], work: &mut [T]) -> Result<(), &str>;
-    fn lpc_praat(&self, n_coeffs: usize) -> Result<Vec<T>, &str>;
+    fn lpc_praat_mut(&self, n_coeffs: usize, coeffs: &mut [T], work: &mut [T]) -> VoxBoxResult<()>;
+    fn lpc_praat(&self, n_coeffs: usize) -> VoxBoxResult<Vec<T>>;
 }
 
 impl<T: Float> LPC<T> for [T] { 
@@ -91,14 +93,14 @@ impl<T: Float> LPC<T> for [T] {
         ac
     }
 
-    fn lpc_praat(&self, n_coeffs: usize) -> Result<Vec<T>, &str> {
+    fn lpc_praat(&self, n_coeffs: usize) -> VoxBoxResult<Vec<T>> {
         let mut coeffs = vec![T::zero(); n_coeffs];
         let mut work = vec![T::zero(); self.len() * 2 + n_coeffs];
         self.lpc_praat_mut(n_coeffs, &mut coeffs[..], &mut work[..])
-            .map(|_| coeffs.to_vec())
+            .map(|_| Ok(coeffs.to_vec()))?
     }
 
-    fn lpc_praat_mut(&self, n_coeffs: usize, coeffs: &mut [T], work: &mut [T]) -> Result<(), &str> {
+    fn lpc_praat_mut(&self, n_coeffs: usize, coeffs: &mut [T], work: &mut [T]) -> VoxBoxResult<()> {
         assert!(coeffs.len() >= n_coeffs);
         assert!(work.len() >= (self.len() * 2 + n_coeffs));
         let (mut b1, mut work) = work.split_at_mut(self.len());
@@ -121,7 +123,7 @@ impl<T: Float> LPC<T> for [T] {
                 denum = denum + b1[j - 1].powi(2) + b2[j - 1].powi(2);
             }
             if denum <= T::zero() {
-                return Err("Denum was <= 0.0");
+                return Err(VoxBoxError::LPC("Denum was <= 0.0"));
             }
             coeffs[i - 1] = T::from(2.0).unwrap() * num / denum;
             for j in 1..i {

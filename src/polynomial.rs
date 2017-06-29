@@ -4,6 +4,8 @@ use std::f32;
 use std::ops::Neg;
 use std::iter::*;
 
+use error::*;
+
 use num::{Float, Num, Zero, One, FromPrimitive, Complex};
 
 pub trait Polynomial<'a, T> {
@@ -12,11 +14,11 @@ pub trait Polynomial<'a, T> {
     fn laguerre(&self, z: Complex<T>) -> Complex<T>;
 
     fn find_roots_work_size(&self) -> usize;
-    fn find_roots(&self) -> Result<Vec<Complex<T>>, &str>;
-    fn find_roots_mut<'b>(&'b mut self, &'b mut [Complex<T>]) -> Result<(), &str>;
+    fn find_roots(&self) -> VoxBoxResult<Vec<Complex<T>>>;
+    fn find_roots_mut<'b>(&'b mut self, &'b mut [Complex<T>]) -> VoxBoxResult<()>;
 
-    fn div_polynomial(&mut self, other: Complex<T>) -> Result<Vec<Complex<T>>, &str>;
-    fn div_polynomial_mut(&'a mut self, other: Complex<T>, rem: &'a mut [Complex<T>]) -> Result<(), &str>;
+    fn div_polynomial(&mut self, other: Complex<T>) -> VoxBoxResult<Vec<Complex<T>>>;
+    fn div_polynomial_mut(&'a mut self, other: Complex<T>, rem: &'a mut [Complex<T>]) -> VoxBoxResult<()>;
 }
 
 impl<'a, T> Polynomial<'a, T> for [Complex<T>] 
@@ -75,7 +77,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         self.len() * 6 + 4
     }
 
-    fn find_roots(&self) -> Result<Vec<Complex<T>>, &str> {
+    fn find_roots(&self) -> VoxBoxResult<Vec<Complex<T>>> {
         let mut work: Vec<Complex<T>> = vec![Complex::<T>::from(T::zero()); self.find_roots_work_size()];
         let mut other = self.to_vec();
         {
@@ -88,10 +90,10 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
     }
 
     /// work must be 3*size+2 for complex floats (meaning 6*size+4 of the buffer)
-    fn find_roots_mut<'b>(&'b mut self, work: &'b mut [Complex<T>]) -> Result<(), &str> {
+    fn find_roots_mut<'b>(&'b mut self, work: &'b mut [Complex<T>]) -> VoxBoxResult<()> {
         // Initialize coefficient highs and lows
         let coeff_high = self.degree();
-        if coeff_high < 1 { return Err("Zero degree polynomial: no roots to be found.") }
+        if coeff_high < 1 { return Err(VoxBoxError::Polynomial("Zero degree polynomial: no roots to be found.")) }
 
         let coeff_low: usize = self.off_low();
         let mut m = coeff_high - coeff_low;
@@ -119,7 +121,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
             z_root_index += 1;
             // println!("z is {:?}", z);
             match coeffs.div_polynomial_mut(z.neg(), &mut rem) {
-                Err(_) => { return Err("Failed to find roots") },
+                Err(_) => { return Err(VoxBoxError::Polynomial("Failed to find roots")) },
                 Ok(_) => { }
             }
             // println!("&[] coeffs are: {:?}", coeffs);
@@ -151,7 +153,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
     }
 
     /// Divides self by other, and stores the remainder in rem
-    fn div_polynomial_mut(&'a mut self, other: Complex<T>, rem: &'a mut [Complex<T>]) -> Result<(), &str> {
+    fn div_polynomial_mut(&'a mut self, other: Complex<T>, rem: &'a mut [Complex<T>]) -> VoxBoxResult<()> {
         for i in 0..self.len() {
             rem[i] = self[i];
         }
@@ -188,13 +190,13 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
                 }
                 Ok(())
             } else {
-                Err("Tried to divide by zero")
+                Err(VoxBoxError::Polynomial("Tried to divide by zero"))
             }
         }
     }
 
     /// Returns the remainder
-    fn div_polynomial(&mut self, other: Complex<T>) -> Result<Vec<Complex<T>>, &str> {
+    fn div_polynomial(&mut self, other: Complex<T>) -> VoxBoxResult<Vec<Complex<T>>> {
         let mut rem = self.to_vec();
         {
             self.div_polynomial_mut(other, &mut rem[..]);

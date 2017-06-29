@@ -9,6 +9,7 @@ pub mod periodic;
 pub mod polynomial;
 pub mod spectrum;
 pub mod waves;
+pub mod error;
 
 use sample::Sample;
 use sample::conv::Duplex;
@@ -21,6 +22,7 @@ use spectrum::{LPC, LPCSolver, Resonance, EstimateFormants};
 use polynomial::Polynomial;
 use waves::{Normalize, Filter};
 use periodic::Autocorrelate;
+use error::*;
 
 use std::error::Error;
 
@@ -41,11 +43,11 @@ pub fn find_formants_complex_work_size(n_coeffs: usize) -> usize {
 /// Calculates the next frame of formants based on given estimates. The user must provide
 /// sufficient workspace to carry out these calculations.
 pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resampled_buf: &mut [S], n_coeffs: usize, work: &mut [S], complex_work: &mut [Complex<S>], formants: &mut [Resonance<S>]) 
-    -> Result<(), &'static str> 
+    -> VoxBoxResult<()> 
     where S: Sample + Duplex<f64> + Float + FromPrimitive
 {
     if work.len() < find_formants_real_work_size(buf.len(), n_coeffs) {
-        return Err("Not enough workspace allocated");
+        return Err(VoxBoxError::Workspace);
     }
 
     let resampled_len = (resample_ratio * buf.len() as f64).ceil() as usize; 
@@ -70,8 +72,7 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
     let (mut lpc_work, mut work) = work.split_at_mut(resampled_buf.len() * 2 + n_coeffs);
     let (mut auto_coeffs, mut work) = work.split_at_mut(n_coeffs + 2);
 
-    try!(resampled_buf.lpc_praat_mut(n_coeffs, &mut lpc_coeffs, &mut lpc_work)
-        .map_err(|_| "Error resolving LPC"));
+    resampled_buf.lpc_praat_mut(n_coeffs, &mut lpc_coeffs, &mut lpc_work)?;
     let one = [1.0.to_sample::<S>()];
 
     let resonances = {
@@ -85,8 +86,7 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
             }
         }
         
-        complex_lpc.find_roots_mut(&mut complex_work)
-            .expect("Problem finding roots.");
+        complex_lpc.find_roots_mut(&mut complex_work)?;
         for root in complex_lpc.iter() {
             if root.im > 0.0.to_sample::<S>() {
                 match Resonance::from_root(root, sample_rate) {
@@ -102,7 +102,7 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
             v.frequency != 0f64.to_sample::<S>()
         }).unwrap_or(0);
         resonances[0..(rpos+1)].sort_by(|a, b| { 
-            a.frequency.partial_cmp(&b.frequency).expect("Could not compare resonances")
+            a.frequency.partial_cmp(&b.frequency).unwrap_or(std::cmp::Ordering::Less)
         });
         resonances
     };
