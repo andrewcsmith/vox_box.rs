@@ -13,18 +13,12 @@ pub mod error;
 
 use sample::Sample;
 use sample::conv::Duplex;
-use sample::slice::to_frame_slice;
-use sample::{ToFrameSlice};
 use sample::window::Type;
 use sample::interpolate::{Linear, Converter};
 
-use spectrum::{LPC, LPCSolver, Resonance, EstimateFormants};
+use spectrum::{LPC, Resonance, EstimateFormants};
 use polynomial::Polynomial;
-use waves::{Normalize, Filter};
-use periodic::Autocorrelate;
 use error::*;
-
-use std::error::Error;
 
 use num::{Float, Complex, FromPrimitive};
 
@@ -46,11 +40,16 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
     -> VoxBoxResult<()> 
     where S: Sample + Duplex<f64> + Float + FromPrimitive
 {
-    if work.len() < find_formants_real_work_size(buf.len(), n_coeffs) {
+    let resampled_len = (resample_ratio * buf.len() as f64).ceil() as usize; 
+
+    if work.len() < find_formants_real_work_size(resampled_len, n_coeffs) {
         return Err(VoxBoxError::Workspace);
     }
 
-    let resampled_len = (resample_ratio * buf.len() as f64).ceil() as usize; 
+    // if complex_work.len() < find_formants_complex_work_size(n_coeffs) {
+    //     return Err(VoxBoxError::Workspace);
+    // }
+
     assert!(resampled_len <= resampled_buf.len());
     let mut resonances = [Resonance::new(0f64.to_sample::<S>(), 0f64.to_sample::<S>()); MAX_RESONANCES];
     let (mut lpc_coeffs, mut work) = work.split_at_mut(n_coeffs);
@@ -69,8 +68,8 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
         *s = *s * window;
     }
 
-    let (mut lpc_work, mut work) = work.split_at_mut(resampled_buf.len() * 2 + n_coeffs);
-    let (mut auto_coeffs, mut work) = work.split_at_mut(n_coeffs + 2);
+    let (mut lpc_work, work) = work.split_at_mut(resampled_buf.len() * 2 + n_coeffs);
+    let (auto_coeffs, _) = work.split_at_mut(n_coeffs + 2);
 
     resampled_buf.lpc_praat_mut(n_coeffs, &mut lpc_coeffs, &mut lpc_work)?;
     let one = [1.0.to_sample::<S>()];

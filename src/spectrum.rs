@@ -2,14 +2,12 @@ extern crate num;
 extern crate rustfft as fft;
 
 use std::f64::consts::PI;
-use std::ops::{Index, IndexMut};
 use std::default::Default;
 use std::marker::PhantomData;
 use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
 use std::fmt::Debug;
 use std::cmp::Ordering;
-use std::iter::IntoIterator;
 
 use error::*;
 
@@ -103,9 +101,9 @@ impl<T: Float> LPC<T> for [T] {
     fn lpc_praat_mut(&self, n_coeffs: usize, coeffs: &mut [T], work: &mut [T]) -> VoxBoxResult<()> {
         assert!(coeffs.len() >= n_coeffs);
         assert!(work.len() >= (self.len() * 2 + n_coeffs));
-        let (mut b1, mut work) = work.split_at_mut(self.len());
-        let (mut b2, mut work) = work.split_at_mut(self.len());
-        let (mut aa, mut work) = work.split_at_mut(n_coeffs);
+        let (mut b1, work) = work.split_at_mut(self.len());
+        let (mut b2, work) = work.split_at_mut(self.len());
+        let (mut aa, _) = work.split_at_mut(n_coeffs);
 
         b1[0] = self[0];
         b2[self.len() - 2] = self[self.len() - 1];
@@ -167,7 +165,6 @@ impl<T> Resonance<T> {
 impl<T: Float + FromPrimitive> Resonance<T> {
     pub fn from_root(root: &Complex<T>, sample_rate: T) -> Option<Resonance<T>> {
         let freq_mul: T = T::from_f64(sample_rate.to_f64().unwrap() / (PI * 2f64)).unwrap();
-        let samp_interval: T = T::from(1.).unwrap() / sample_rate;
         if root.im >= T::zero() {
             let (mut r, mut theta) = root.to_polar();
             // Reflect large roots around the unit circle

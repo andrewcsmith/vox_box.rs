@@ -48,24 +48,24 @@ fn test_formant_calculation() {
         sample.unwrap() as f64 / (i32::MAX >> (32 - bits)) as f64
     }).collect();
 
-    let resample_factor = 4.0;
     let n_coeffs = 10;
+
+    let resample_ratio = 1.0;
 
     let bin = 1024;
     let hop = 512;
     let sample_rate = reader.spec().sample_rate as f64;
-    let resampled_len = (bin as f64 / resample_factor) as usize;
-    let mut work = vec![0f64; vox_box::find_formants_real_work_size(resampled_len, n_coeffs)];
-    let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
-
+    let resampled_len = (samples.len() as f64 * resample_ratio).ceil() as usize;
     let mut formants: Vec<Resonance<f64>> = vox_box::MALE_FORMANT_ESTIMATES.iter().map(|f| Resonance::new(*f, 1.0)).collect();
     let mut all_formants: Vec<Vec<Resonance<f64>>> = Vec::new();
     let mut frame_buffer: Vec<f64> = Vec::with_capacity(bin);
     let mut powers: Vec<f64> = Vec::new();
 
     let sample_frames: &[[f64; 1]] = sample::slice::to_frame_slice(&samples[..]).unwrap();
-    let resample_ratio = 1.0;
-    let mut resampled_buf = [0f64; 0];
+    let mut resampled_buf = vec![0f64; resampled_len];
+
+    let mut work = vec![0f64; vox_box::find_formants_real_work_size(resampled_len, n_coeffs)];
+    let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 
     for frame in window::Windower::rectangle(sample_frames, bin, hop) {
         for s in frame { 
@@ -74,7 +74,7 @@ fn test_formant_calculation() {
         vox_box::find_formants(&mut frame_buffer[..], sample_rate, 
                                resample_ratio, &mut resampled_buf[..],
                                n_coeffs, &mut work[..], &mut complex_work[..],
-                               &mut formants[..]);
+                               &mut formants[..]).unwrap();
         all_formants.push(formants.clone());
         let rms: f64 = (frame_buffer.iter().fold(0., |acc, v| acc + v.powi(2)) / bin as f64).sqrt();
         powers.push(rms);

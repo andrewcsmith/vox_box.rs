@@ -57,7 +57,7 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
         result += {
             // a is PI * (the scalar + nsamp away from the source)
             let a = PI * (phil + n as f64);
-            let mut lag_val = (offset as i32 + nr as i32 - n as i32);
+            let mut lag_val = offset as i32 + nr as i32 - n as i32;
             if lag_val < 0 { lag_val = 0; }
             // each element
             let r_lag = y[lag_val as usize].to_float_sample().to_sample::<f64>();
@@ -69,7 +69,7 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
         // Sum the values to the right of the sample
         result += {
             let a = PI * (phir + n as f64);
-            let mut lag_val = (offset as i32 + nl as i32 + n as i32);
+            let mut lag_val = offset as i32 + nl as i32 + n as i32;
             if lag_val < 0 { lag_val = 0; }
             if lag_val >= y.len() as i32 { lag_val = y.len() as i32 - 1; }
             let r_lag = y[lag_val as usize].to_float_sample().to_sample::<f64>();
@@ -313,6 +313,7 @@ impl<T> Pitch<T>
     }
 }
 
+#[allow(dead_code)]
 pub struct PitchExtractor<'a, T: 'a + Float> {
     voiced_unvoiced_cost: T,
     voicing_threshold: T,
@@ -349,7 +350,7 @@ impl<'a, T: 'a + Float> Iterator for PitchExtractor<'a, T> {
 }
 
 pub trait Pitched<S, T: Float> {
-    fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, silence_threshold: S, local_peak: S, global_peak: S, octave_cost: T, min: T, max: T) -> Vec<Pitch<T>>;
+    fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, local_peak: S, global_peak: S, min: T, max: T) -> Vec<Pitch<T>>;
 }
 
 /// Trait for finding local maxima in a given slice. `local_maxima` should return `Vec<(bin,
@@ -391,7 +392,7 @@ impl<S, T> Pitched<S, T> for [S]
     // TODO: need 2 empty mutable Vecs, 
     // self_lag: [T; 2*self.len()]
     // maxima: [Pitch<T>; max_maxima], theoretically could be up to (0.5 * self.len()).ceil()
-    fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, silence_threshold: S, local_peak: S, global_peak: S, octave_cost: T, min: T, max: T) -> Vec<Pitch<T>> {
+    fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, local_peak: S, global_peak: S, min: T, max: T) -> Vec<Pitch<T>> {
         let window_lag = Window::<[S; 1], W::Lag>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]);
 
         // TODO: remove allocation
@@ -404,8 +405,6 @@ impl<S, T> Pitched<S, T> for [S]
 
         // TODO: remove allocation
         self_lag.resize(self.len() * 2, S::from_sample(0.));
-
-        let voiceless = (T::zero(), threshold + T::zero().max(T::one() + T::one() - (T::from(local_peak.to_float_sample()).unwrap() / T::from(global_peak.to_float_sample()).unwrap()) / (T::from(silence_threshold.to_float_sample()).unwrap() / T::one() + threshold)));
 
         let interpolation_depth = 0.5;
         let brent_ixmax = (interpolation_depth * self.len() as f64).floor() as usize;
@@ -485,7 +484,7 @@ mod tests {
         let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
         for chunk in window::Windower::hanning(&vector[..], 2048, 1024) {
             let chunk_data: Vec<[f64; 1]> = chunk.collect();
-            let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, 0.05, maxima, maxima, 0.01, 100., 500.);
+            let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, maxima, maxima, 100., 500.);
             println!("pitch: {:?}", pitch);
             assert!((pitch[0].frequency - exp_freq).abs() < 1.0e-2);
         }

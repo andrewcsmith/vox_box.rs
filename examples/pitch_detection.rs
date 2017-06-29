@@ -50,6 +50,6 @@ fn main() {
 }
 
 fn analyze_pitch(chunk_data: &[f64], maxima: f64) -> Result<Vec<Pitch<f64>>, ()> {
-    Ok(chunk_data.pitch::<window::Hanning>(44100., 0.2, 0.05, maxima, maxima, 0.01, 100., 500.))
+    Ok(chunk_data.pitch::<window::Hanning>(44100., 0.2, maxima, maxima, 100., 500.))
 }
 

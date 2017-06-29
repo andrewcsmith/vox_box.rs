@@ -3,7 +3,6 @@ extern crate sample;
 
 use std::f64::consts::PI;
 use std::iter::Iterator;
-use std::ops::*;
 use std::cmp::Ordering::*;
 
 use sample::{Sample, FloatSample, FromSample};

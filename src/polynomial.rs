@@ -1,12 +1,11 @@
 extern crate num;
 
-use std::f32;
 use std::ops::Neg;
 use std::iter::*;
 
 use error::*;
 
-use num::{Float, Num, Zero, One, FromPrimitive, Complex};
+use num::{Float, Zero, One, FromPrimitive, Complex};
 
 pub trait Polynomial<'a, T> {
     fn degree(&self) -> usize;
@@ -36,7 +35,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         let n: usize = self.len() - 1;
         let mut z = start;
         // max iterations of 20
-        for iteration in 0..20 {
+        for _ in 0..20 {
             let mut abg = [self[n], Complex::<T>::zero(), Complex::<T>::zero()];
 
             for j in (0..n).rev() {
@@ -81,7 +80,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
         let mut work: Vec<Complex<T>> = vec![Complex::<T>::from(T::zero()); self.find_roots_work_size()];
         let mut other = self.to_vec();
         {
-            other.find_roots_mut(&mut work[..]); 
+            other.find_roots_mut(&mut work[..])?; 
         }
         while other[other.len()-1] == Complex::<T>::zero() {
             other.pop();
@@ -106,15 +105,15 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
             z_root_index = z_root_index + 1;
         }
 
-        let (mut rem, mut work) = work.split_at_mut(coeff_high - coeff_low + 1);
-        let (mut coeffs, mut work) = work.split_at_mut(coeff_high - coeff_low + 1);
+        let (mut rem, work) = work.split_at_mut(coeff_high - coeff_low + 1);
+        let (mut coeffs, _) = work.split_at_mut(coeff_high - coeff_low + 1);
         for co in coeff_low..(coeff_high+1) {
             coeffs[co] = self[co];
         }
         // println!("&[] coeffs: {:?}", coeffs);
 
         // Use the Laguerre method to factor out a single root
-        for i in (3..(m+1)).rev() {
+        for _ in (3..(m+1)).rev() {
             let start = Complex::<T>::new(T::from(-2.0).unwrap(), T::from(-2.0).unwrap());
             let z = coeffs.laguerre(start);
             z_roots[z_root_index] = z;
@@ -199,7 +198,7 @@ impl<'a, T> Polynomial<'a, T> for [Complex<T>]
     fn div_polynomial(&mut self, other: Complex<T>) -> VoxBoxResult<Vec<Complex<T>>> {
         let mut rem = self.to_vec();
         {
-            self.div_polynomial_mut(other, &mut rem[..]);
+            self.div_polynomial_mut(other, &mut rem[..])?;
         }
         Ok(rem)
     }
