@@ -70,8 +70,8 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
     let (mut lpc_work, mut work) = work.split_at_mut(resampled_buf.len() * 2 + n_coeffs);
     let (mut auto_coeffs, mut work) = work.split_at_mut(n_coeffs + 2);
 
-    resampled_buf.lpc_praat_mut(n_coeffs, &mut lpc_coeffs, &mut lpc_work)
-        .expect("Problem resolving LPC");
+    try!(resampled_buf.lpc_praat_mut(n_coeffs, &mut lpc_coeffs, &mut lpc_work)
+        .map_err(|_| "Error resolving LPC"));
     let one = [1.0.to_sample::<S>()];
 
     let resonances = {
