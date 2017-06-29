@@ -27,16 +27,17 @@ fn test_against_praat() {
     let segment: Vec<f64> = samples[start..end].iter().map(|s| s - mean).collect();
 
     let sample_rate = reader.spec().sample_rate as f64;
-    let mut work = vec![0f64; vox_box::find_formants_real_work_size(segment.len(), n_coeffs)];
-    let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
     let resample_ratio = 1.0;
-    let mut resampled_buf = [0f64; 0];
+    let resampled_len = (resample_ratio * samples.len() as f64).ceil() as usize;
+    let mut resampled_buf = vec![0f64; resampled_len];
+    let mut work = vec![0f64; vox_box::find_formants_real_work_size(resampled_len, n_coeffs)];
+    let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 
     let mut formants: Vec<Resonance<f64>> = vox_box::MALE_FORMANT_ESTIMATES.iter().map(|f| Resonance::new(*f, 1.0)).collect();
     vox_box::find_formants(&mut samples[..], sample_rate,
                            resample_ratio, &mut resampled_buf[..],
                            n_coeffs, &mut work[..], &mut complex_work[..],
-                           &mut formants[..]);
+                           &mut formants[..]).unwrap();
     println!("formants: {:?}", formants);
 }
 
