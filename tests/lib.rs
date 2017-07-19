@@ -69,7 +69,7 @@ fn test_formant_calculation() {
     let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 
     for frame in window::Windower::rectangle(sample_frames, bin, hop) {
-        for s in frame { 
+        for s in frame.take(bin) { 
             frame_buffer.push(s[0]); 
         }
         vox_box::find_formants(&mut frame_buffer[..], sample_rate, 

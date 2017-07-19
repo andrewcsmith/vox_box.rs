@@ -440,7 +440,7 @@ mod test {
     use rand::{thread_rng, Rng};
     use waves::*;
     use periodic::*;
-    use sample::{window, ToSampleSlice};
+    use sample::{window, Signal, ToSampleSlice};
     use num::Complex;
     use polynomial::Polynomial;
 

@@ -11,7 +11,7 @@ pub mod spectrum;
 pub mod waves;
 pub mod error;
 
-use sample::Sample;
+use sample::{Sample, Signal, signal};
 use sample::conv::Duplex;
 use sample::window::Type;
 use sample::interpolate::{Linear, Converter};
@@ -54,10 +54,10 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
     let mut resonances = [Resonance::new(0f64.to_sample::<S>(), 0f64.to_sample::<S>()); MAX_RESONANCES];
     let (mut lpc_coeffs, mut work) = work.split_at_mut(n_coeffs);
     if resample_ratio != 1.0 {
-        let mut buf_iter = buf.iter().map(|b| [*b]);
-        let linear = Linear::new(buf_iter.next().unwrap(), buf_iter.next());
+        let mut buf_iter = signal::from_iter(buf.iter().map(|b| [*b]));
+        let linear = Linear::new(buf_iter.next(), buf_iter.next());
         let sig = Converter::scale_sample_hz(buf_iter, linear, resample_ratio);
-        for (r, s) in resampled_buf.iter_mut().zip(sig) { *r = s[0]; }
+        for (r, s) in resampled_buf.iter_mut().zip(sig.take(resampled_len)) { *r = s[0]; }
     } else {
         for (r, s) in resampled_buf.iter_mut().zip(buf.iter()) { *r = *s; }
     }

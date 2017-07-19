@@ -10,7 +10,7 @@ extern crate num;
 use vox_box::periodic::*;
 use vox_box::waves::*;
 
-use sample::{window, ToSampleSlice};
+use sample::{window, Signal, ToSampleSlice};
 use sample::signal::Sine;
 use std::cmp::Ordering;
 use std::f64::consts::PI;

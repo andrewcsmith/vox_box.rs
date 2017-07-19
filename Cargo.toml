@@ -18,9 +18,12 @@ crate-type = ["dylib", "rlib"]
 [dependencies]
 num = "0.1"
 rand = "0.3"
-sample = { path = "../../../rust/sample" }
 libc = "0.2"
 rustfft = "1.0"
+
+[dependencies.sample]
+git = "https://github.com/RustAudio/sample.git"
+rev = "399244f73714d74330c371809a7988717f8bc534"
 
 [dev-dependencies]
 hound = "2.0"

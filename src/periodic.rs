@@ -457,7 +457,7 @@ mod tests {
     use super::*;
     use super::super::waves::*;
 
-    use sample::{window, ToSampleSlice};
+    use sample::{window, Signal, ToSampleSlice};
     use sample::signal::Sine;
     use std::cmp::Ordering;
     use std::f64::consts::PI;
@@ -479,11 +479,14 @@ mod tests {
     #[test]
     fn test_pitch() {
         let exp_freq = 150.0;
+        let bin = 2048;
+        let hop = 1024;
+
         let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
-        let vector: Vec<[f64; 1]> = signal.take(2048 + 1).collect();
+        let vector: Vec<[f64; 1]> = signal.take(bin + 1).collect();
         let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
-        for chunk in window::Windower::hanning(&vector[..], 2048, 1024) {
-            let chunk_data: Vec<[f64; 1]> = chunk.collect();
+        for chunk in window::Windower::hanning(&vector[..], bin, hop) {
+            let chunk_data: Vec<[f64; 1]> = chunk.take(bin).collect();
             let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, maxima, maxima, 100., 500.);
             println!("pitch: {:?}", pitch);
             assert!((pitch[0].frequency - exp_freq).abs() < 1.0e-2);
