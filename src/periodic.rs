@@ -389,10 +389,10 @@ impl<S, T> Pitched<S, T> for [S]
     ///
     /// A third pass, using PitchExtractor, should find a path through these candidates that
     /// maximizes both the smoothness of the pitch contour and the strength of the pitches.
-    // TODO: need 2 empty mutable Vecs, 
-    // self_lag: [T; 2*self.len()]
-    // maxima: [Pitch<T>; max_maxima], theoretically could be up to (0.5 * self.len()).ceil()
     fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, local_peak: S, global_peak: S, min: T, max: T) -> Vec<Pitch<T>> {
+        // TODO: need 2 empty mutable Vecs, 
+        // self_lag: [T; 2*self.len()]
+        // maxima: [Pitch<T>; max_maxima], theoretically could be up to (0.5 * self.len()).ceil()
         let window_lag = Window::<[S; 1], W::Lag>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]);
 
         // TODO: remove allocation

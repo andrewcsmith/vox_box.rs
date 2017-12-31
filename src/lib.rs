@@ -52,7 +52,7 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
 
     assert!(resampled_len <= resampled_buf.len());
     let mut resonances = [Resonance::new(0f64.to_sample::<S>(), 0f64.to_sample::<S>()); MAX_RESONANCES];
-    let (mut lpc_coeffs, mut work) = work.split_at_mut(n_coeffs);
+    let (mut lpc_coeffs, work) = work.split_at_mut(n_coeffs);
     if resample_ratio != 1.0 {
         let mut buf_iter = signal::from_iter(buf.iter().map(|b| [*b]));
         let linear = Linear::new(buf_iter.next(), buf_iter.next());
@@ -69,7 +69,7 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
     }
 
     let (mut lpc_work, work) = work.split_at_mut(resampled_buf.len() * 2 + n_coeffs);
-    let (auto_coeffs, _) = work.split_at_mut(n_coeffs + 2);
+    let (_, _) = work.split_at_mut(n_coeffs + 2);
 
     resampled_buf.lpc_praat_mut(n_coeffs, &mut lpc_coeffs, &mut lpc_work)?;
     let one = [1.0.to_sample::<S>()];
