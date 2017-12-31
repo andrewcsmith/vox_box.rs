@@ -380,12 +380,21 @@ pub fn mel_to_hz(mel: f64) -> f64 {
     700. * ((mel / 1125.).exp() - 1.)
 }
 
+/// Takes the Discrete Cosine Transform of a slice. Allocates its own output memory.
 pub fn dct<T: FromPrimitive + ToPrimitive + Float>(signal: &[T]) -> Vec<T> {
-    signal.iter().enumerate().map(|(k, _)| {
-        T::from_f64(2. * (0..signal.len()).fold(0., |acc, n| {
+    let mut out = vec![T::zero(); signal.len()];
+    dct_mut(signal, &mut out[..]);
+    out
+}
+
+/// Takes the Discrete Cosine Transform and saves coefficients into a mutable slice.
+pub fn dct_mut<T: FromPrimitive + ToPrimitive + Float>(signal: &[T], coeffs: &mut [T]) {
+    assert!(coeffs.len() >= signal.len());
+    for (k, coeff) in out.iter_mut().take(signal.len()).enumerate() {
+        *coeff = T::from_f64(2. * (0..signal.len()).fold(0., |acc, n| {
             acc + signal[n].to_f64().unwrap() * (PI * k as f64 * (2. * n as f64 + 1.) / (2. * signal.len() as f64)).cos()
-        })).unwrap()
-    }).collect()
+        })).unwrap();
+    }
 }
 
 /// MFCC assumes that it is a windowed signal
