@@ -6,7 +6,7 @@ A tool to let you hack away at voice audio recordings in Rust.
 
 ## How do I do it?
 
-[Documentation](http://www.andrewchristophersmith.com/docs/vox_box/vox_box/index.html)
+[Documentation](https://docs.rs/vox_box/0.3.0/vox_box/)
 
 ## What's included
 
