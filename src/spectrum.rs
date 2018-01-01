@@ -390,7 +390,7 @@ pub fn dct<T: FromPrimitive + ToPrimitive + Float>(signal: &[T]) -> Vec<T> {
 /// Takes the Discrete Cosine Transform and saves coefficients into a mutable slice.
 pub fn dct_mut<T: FromPrimitive + ToPrimitive + Float>(signal: &[T], coeffs: &mut [T]) {
     assert!(coeffs.len() >= signal.len());
-    for (k, coeff) in out.iter_mut().take(signal.len()).enumerate() {
+    for (k, coeff) in coeffs.iter_mut().take(signal.len()).enumerate() {
         *coeff = T::from_f64(2. * (0..signal.len()).fold(0., |acc, n| {
             acc + signal[n].to_f64().unwrap() * (PI * k as f64 * (2. * n as f64 + 1.) / (2. * signal.len() as f64)).cos()
         })).unwrap();
