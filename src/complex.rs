@@ -1,7 +1,7 @@
 extern crate num;
 extern crate sample;
 
-pub use num::complex::*;
+pub use num_complex::*;
 use num::Float;
 use num::traits::FromPrimitive;
 

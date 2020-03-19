@@ -416,7 +416,7 @@ impl<T: ?Sized> MFCC<T> for [T]
         let mut spectrum = vec![Complex::<T>::from(T::zero()); self.len()];
         let mut fft = fft::FFT::new(self.len(), false);
         let signal: Vec<Complex<T>> = self.iter().map(|e| Complex::<T>::from(e)).collect();
-        fft.process(&signal, &mut spectrum);
+        fft.process(&signal[..], &mut spectrum[..]);
 
         let energy_map = |window: &[usize]| -> T {
             let up = window[1] - window[0];

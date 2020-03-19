@@ -1,4 +1,5 @@
 extern crate num;
+extern crate num_complex;
 extern crate rand;
 extern crate sample;
 extern crate rustfft;
@@ -79,7 +80,11 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
         let (mut complex_lpc, mut complex_work) = complex_work.split_at_mut(n_coeffs + 1);
 
         {
-            let rc = one.iter().chain(lpc_coeffs.iter()).rev().zip(complex_lpc.iter_mut());
+            let rc = one.iter()
+                .chain(lpc_coeffs.iter())
+                .rev()
+                .zip(complex_lpc.iter_mut());
+            
             for (r, c) in rc {
                 *c = Complex::<S>::from(r);
             }

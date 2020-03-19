@@ -33,7 +33,7 @@ fn bench_pitch(b: &mut test::Bencher) {
 
     b.iter(|| {
         for chunk in window::Windower::hanning(&vector[..], 4096, 1024) {
-            for d in chunk {
+            for d in chunk.take(4096) {
                 chunk_data.push(d[0]);
             }
             let pitch = chunk_data.pitch::<window::Hanning>(44100., 0.2, 0.05, maxima, maxima, 0.01, 100., 500.);

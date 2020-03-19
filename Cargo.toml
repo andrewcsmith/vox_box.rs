@@ -16,11 +16,12 @@ doctest = false
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-num = "0.1"
+num = "0.2"
+num-complex = "0.2"
 rand = "0.3"
 libc = "0.2"
 rustfft = "1.0"
-sample = "0.9"
+sample = "0.10"
 
 [dev-dependencies]
 hound = "2.0"
