@@ -6,8 +6,7 @@ authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 [dependencies]
 num = "0.1"
 hound = "2.0.0"
-sample = { path = "/Users/acsmith/workspaces/rust/sample" }
+sample = "0.10"
 vox_box = { path = "../.." }
 rustfft = "1.0"
 clap = "*"
-

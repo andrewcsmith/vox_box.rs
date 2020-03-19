@@ -59,7 +59,9 @@ fn go() -> Result<(), Box<Error>> {
     let mut work = vec![0f64; vox_box::find_formants_real_work_size((resample_ratio * samples.len() as f64).ceil() as usize, n_coeffs)];
     let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 
-    let mut formants: Vec<Resonance<f64>> = vox_box::MALE_FORMANT_ESTIMATES.iter().map(|f| Resonance::new(*f, 1.0)).collect();
+    let mut formants: Vec<Resonance<f64>> = vox_box::MALE_FORMANT_ESTIMATES.iter()
+        .map(|f| Resonance::new(*f, 1.0))
+        .collect();
     let mut all_formants: Vec<Vec<Resonance<f64>>> = Vec::new();
     let mut frame_buffer: Vec<f64> = Vec::with_capacity(bin);
     let mut powers: Vec<f64> = Vec::new();
@@ -68,7 +70,7 @@ fn go() -> Result<(), Box<Error>> {
     let mut frames: Vec<[f64; 1]> = samples.collect();
 
     for frame in window::Windower::rectangle(&frames[..], bin, hop) {
-        for s in frame { 
+        for s in frame.take(bin) { 
             frame_buffer.push(s[0]); 
         }
         let pitch: f64 = frame_buffer.to_sample_slice().pitch::<Hanning>(new_sample_rate, 0.2, 0.05, 1.0, 1.0, 1.0, 50., 200.)[0].frequency;

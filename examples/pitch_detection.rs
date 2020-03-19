@@ -28,7 +28,7 @@ fn get_pitch() -> Result<(), ()> {
 
     let mut chunk_data: Vec<f64> = Vec::with_capacity(2048);
     for chunk in window::Windower::hanning(&vector[..], 2048, 1024) {
-        for d in chunk {
+        for d in chunk.take(2048) {
             chunk_data.push(d[0]);
         }
         try!(analyze_pitch(&chunk_data[..], maxima));
