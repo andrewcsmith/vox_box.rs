@@ -44,7 +44,11 @@ pub fn interpolate_sinc<S: Sample>(y: &[S], offset: isize, nx: usize, x: S, mut 
     // Protect against usize underflow in indexing the lag vector
     // Clip max_depth to offset + nr at the lowest point
     if (offset + nr as isize) < max_depth as isize {
-        max_depth = (offset + nr as isize) as usize;
+        if (offset + nr as isize) < 0 {
+            max_depth = 0;
+        } else {
+            max_depth = (offset + nr as isize) as usize;
+        }
     }
 
     // Clip max_depth to nx - offset + nl - 1 at the highest point
@@ -424,6 +428,7 @@ impl<S, T> Pitched<S, T> for [S]
                 // Not entirely sure what "offset" does
                 let offset = -(brent_ixmax as isize) - 1;
                 let nx = (brent_ixmax as isize - offset) as usize;
+                // Assumed frequency
                 let n = (sample_rate / freq - T::from(offset).unwrap()).to_f64().unwrap().to_sample::<S>();
                 let mut strn = interpolate_sinc(&self_lag[..], offset, nx, n, 30);
                 // Reflect high values due to short sampling periods around 1.0
@@ -436,7 +441,7 @@ impl<S, T> Pitched<S, T> for [S]
                 let offset = -(brent_ixmax as isize) - 1;
                 let nx = (brent_ixmax as isize - offset) as usize;
                 let n = (sample_rate / p.frequency - T::from(offset).unwrap()).to_f64().unwrap();
-                let (mut xmid, mut ymid) = improve_extremum(&self_lag[..], offset, nx, n, Interpolation::Sinc(700), true);
+                let (mut xmid, mut ymid) = improve_extremum(&self_lag[..], offset, nx, n, Interpolation::Sinc(1200), true);
                 xmid += offset as f64;
                 if ymid > 1. { ymid = 1. / ymid; }
                 p.frequency = sample_rate / T::from(xmid).unwrap();

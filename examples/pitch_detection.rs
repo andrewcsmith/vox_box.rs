@@ -11,29 +11,24 @@ use vox_box::periodic::*;
 use vox_box::waves::*;
 
 use sample::{window, Signal, ToSampleSlice};
-use sample::signal::Sine;
-use std::cmp::Ordering;
-use std::f64::consts::PI;
-
-fn sine(len: usize) -> Vec<f64> {
-    let rate = sample::signal::rate(len as f64).const_hz(1.0);
-    rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
-}
 
 fn get_pitch() -> Result<(), ()> {
     let exp_freq = 150.0;
-    let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
+    let signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
     let vector: Vec<[f64; 1]> = signal.take(2048 * 1 + 1).collect();
-    let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
+    let maxima: f64 = vector.to_sample_slice().max_amplitude();
+    let mut pitches_out: Vec<Vec<Pitch<f64>>> = Vec::new();
 
     let mut chunk_data: Vec<f64> = Vec::with_capacity(2048);
     for chunk in window::Windower::hanning(&vector[..], 2048, 1024) {
         for d in chunk.take(2048) {
             chunk_data.push(d[0]);
         }
-        try!(analyze_pitch(&chunk_data[..], maxima));
+        let local_maxima = chunk_data.to_sample_slice().max_amplitude();
+        pitches_out.push(analyze_pitch(&chunk_data[..], maxima, local_maxima)?);
         chunk_data.clear();
     }
+    println!("pitches_out: {:?}", pitches_out);
     Ok(())
 }
 
@@ -49,7 +44,7 @@ fn main() {
     get_pitch().unwrap();
 }
 
-fn analyze_pitch(chunk_data: &[f64], maxima: f64) -> Result<Vec<Pitch<f64>>, ()> {
-    Ok(chunk_data.pitch::<window::Hanning>(44100., 0.2, maxima, maxima, 100., 500.))
+fn analyze_pitch(chunk_data: &[f64], maxima: f64, local_maxima: f64) -> Result<Vec<Pitch<f64>>, ()> {
+    Ok(chunk_data.pitch::<window::Hanning>(44100., 0.2, local_maxima, maxima, 100., 500.))
 }
 
