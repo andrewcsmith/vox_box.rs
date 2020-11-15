@@ -12,9 +12,8 @@ use hound::WavReader;
 use vox_box::spectrum::Resonance;
 use vox_box::periodic::{Hanning, Pitched};
 use vox_box::waves::Filter;
-use sample::{window, ToSampleSliceMut, ToSampleSlice};
-use sample::signal::Signal;
-use sample::interpolate::{Sinc, Converter, Linear};
+use dasp::signal::window::Windower;
+use dasp::slice::ToSampleSlice;
 use num::Complex;
 
 /// Prints the time stamp, then RMS, followed by the center frequency and bandwidth of 5 formants

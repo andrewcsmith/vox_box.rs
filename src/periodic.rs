@@ -458,14 +458,16 @@ mod tests {
     use super::*;
     use super::super::waves::*;
 
-    use sample::{window, Signal, ToSampleSlice};
-    use sample::signal::Sine;
+    use dasp::Signal;
+    use dasp::signal::Sine;
+    use dasp::signal::window::Windower;
+    use dasp::window::Hanning;
     use std::cmp::Ordering;
     use std::f64::consts::PI;
 
     fn sine(len: usize) -> Vec<f64> {
-        let rate = sample::signal::rate(len as f64).const_hz(1.0);
-        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
+        let rate = dasp::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<f64>>().to_sample_slice().to_vec()
     }
 
     #[test]
@@ -483,12 +485,12 @@ mod tests {
         let bin = 2048;
         let hop = 1024;
 
-        let mut signal = sample::signal::rate(44100.).const_hz(exp_freq).sine();
-        let vector: Vec<[f64; 1]> = signal.take(bin + 1).collect();
+        let mut signal = dasp::signal::rate(44100.).const_hz(exp_freq).sine();
+        let vector: Vec<f64> = signal.take(bin + 1).collect();
         let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
-        for chunk in window::Windower::hanning(&vector[..], bin, hop) {
-            let chunk_data: Vec<[f64; 1]> = chunk.take(bin).collect();
-            let pitch = chunk_data.to_sample_slice().pitch::<window::Hanning>(44100., 0.2, maxima, maxima, 100., 500.);
+        for chunk in Windower::hanning(&vector[..], bin, hop) {
+            let chunk_data: Vec<f64> = chunk.take(bin).collect();
+            let pitch = chunk_data.to_sample_slice().pitch::<Hanning>(44100., 0.2, maxima, maxima, 100., 500.);
             println!("pitch: {:?}", pitch);
             assert!((pitch[0].frequency - exp_freq).abs() < 1.0e-2);
         }

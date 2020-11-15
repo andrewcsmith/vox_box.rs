@@ -28,5 +28,8 @@ features = ["interpolate", "interpolate-linear", "signal", "signal-window", "sig
 [dev-dependencies]
 hound = "^3.4"
 
+[dev-dependencies.dasp]
+features = ["signal-window-hanning"]
+
 [features]
 nightly = []

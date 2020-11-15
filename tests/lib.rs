@@ -6,7 +6,7 @@ extern crate vox_box;
 use hound::WavReader;
 use vox_box::waves::*;
 use vox_box::spectrum::Resonance;
-use sample::{window, ToFrameSlice, ToSampleSlice};
+use dasp::signal::window::Windower;
 use num::Complex;
 use std::i32;
 
@@ -62,13 +62,13 @@ fn test_formant_calculation() {
     let mut frame_buffer: Vec<f64> = Vec::with_capacity(bin);
     let mut powers: Vec<f64> = Vec::new();
 
-    let sample_frames: &[[f64; 1]] = sample::slice::to_frame_slice(&samples[..]).unwrap();
+    let sample_frames: &[[f64; 1]] = dasp::slice::to_frame_slice(&samples[..]).unwrap();
     let mut resampled_buf = vec![0f64; resampled_len];
 
     let mut work = vec![0f64; vox_box::find_formants_real_work_size(resampled_len, n_coeffs)];
     let mut complex_work = vec![Complex::new(0f64, 0.); vox_box::find_formants_complex_work_size(n_coeffs)];
 
-    for frame in window::Windower::rectangle(sample_frames, bin, hop) {
+    for frame in Windower::rectangle(sample_frames, bin, hop) {
         for s in frame.take(bin) { 
             frame_buffer.push(s[0]); 
         }

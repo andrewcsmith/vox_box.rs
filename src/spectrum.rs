@@ -454,13 +454,14 @@ mod test {
     use rand::{thread_rng, Rng};
     use waves::*;
     use periodic::*;
-    use sample::{window, Signal, ToSampleSlice};
+    use dasp::Signal;
+    use dasp::slice::ToSampleSlice;
     use num::Complex;
     use polynomial::Polynomial;
 
     fn sine(len: usize) -> Vec<f64> {
-        let rate = sample::signal::rate(len as f64).const_hz(1.0);
-        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
+        let rate = dasp::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<f64>>().to_sample_slice().to_vec()
     }
 
     #[test]
@@ -493,7 +494,7 @@ mod test {
 
     #[test]
     fn test_sine_resonances_praat() {
-        let sine = sample::signal::rate(44100.).const_hz(440.).sine().take(512).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec();
+        let sine = dasp::signal::rate(44100.).const_hz(440.).sine().take(512).collect::<Vec<f64>>().to_sample_slice().to_vec();
         let coeffs: Vec<f64> = sine.lpc_praat(4).unwrap();
         println!("coeffs: {:?}", coeffs);
         let complex_coeffs: Vec<Complex<f64>> = [1.].iter().chain(coeffs.iter()).rev().map(|c| Complex::<f64>::new(*c, 0.)).collect();
@@ -584,9 +585,9 @@ mod test {
     #[test]
     fn test_mfcc() {
         let mut rng = thread_rng();
-        let mut vec: Vec<f64> = (0..256).map(|_| rng.gen_range::<f64>(-1., 1.)).collect();
+        let mut vec: Vec<f64> = (0..256).map(|_| rng.gen_range::<f64, f64, f64>(-1., 1.)).collect();
         vec.preemphasis(0.1f64 * 22_050.);
-        let hanning_window: Vec<[f64; 1]> = window::hanning(256).take(256).collect();
+        let hanning_window: Vec<f64> = dasp::signal::window::hanning(256).take(256).collect();
         for (v, w) in vec.iter_mut().zip(hanning_window.to_sample_slice().iter()) {
             *v *= *w;
         }

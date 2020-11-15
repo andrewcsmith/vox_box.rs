@@ -103,12 +103,12 @@ mod tests {
     use super::super::*;
     use super::super::periodic::*;
 
-    use sample::conv::ToSampleSlice;
-    use sample::window::Window;
+    use dasp::slice::ToSampleSlice;
+    use dasp::signal::window::Window;
 
     fn sine(len: usize) -> Vec<f64> {
-        let rate = sample::signal::rate(len as f64).const_hz(1.0);
-        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
+        let rate = dasp::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<f64>>().to_sample_slice().to_vec()
     }
 
     #[test]
@@ -119,12 +119,12 @@ mod tests {
 
     #[test]
     fn test_window_autocorr() {
-        let lag_window: Window<[f64; 1], HanningLag> = Window::new(16);
-        let data: Vec<[f64; 1]> = lag_window.take(16).collect();
+        let lag_window: Window<f64, HanningLag> = Window::new(16);
+        let data: Vec<f64> = lag_window.take(16).collect();
         println!("window autocorr: {:?}", &data);
-        let window: Window<[f64; 1], Hanning> = Window::new(16);
+        let window: Window<f64, Hanning> = Window::new(16);
         let mut manual: Vec<f64> = {
-            let mut d: Vec<[f64; 1]> = window.take(16).collect();
+            let mut d: Vec<f64> = window.take(16).collect();
             d.to_sample_slice().autocorrelate(16)
         };
         manual.normalize();
