@@ -20,7 +20,7 @@ num = "0.2"
 num-complex = "0.2"
 rand = "0.3"
 libc = "0.2"
-rustfft = "1.0"
+rustfft = "4.0"
 sample = "0.10"
 
 [dev-dependencies]

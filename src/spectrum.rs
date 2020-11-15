@@ -1,5 +1,5 @@
 extern crate num;
-extern crate rustfft as fft;
+extern crate rustfft;
 
 use std::f64::consts::PI;
 use std::default::Default;
@@ -8,6 +8,9 @@ use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
 use std::fmt::Debug;
 use std::cmp::Ordering;
+
+use rustfft::{FFTplanner, FFTnum};
+use rustfft::num_complex::Complex as RustFFTComplex;
 
 use error::*;
 
@@ -405,7 +408,8 @@ impl<T: ?Sized> MFCC<T> for [T]
              FromPrimitive + 
              Into<Complex<T>> + 
              Zero + 
-             Signed
+             Signed +
+             FFTnum
 {
     fn mfcc(&self, num_coeffs: usize, freq_bounds: (f64, f64), sample_rate: f64) -> Vec<T> {
         let mel_range = hz_to_mel(freq_bounds.1) - hz_to_mel(freq_bounds.0);
@@ -413,10 +417,11 @@ impl<T: ?Sized> MFCC<T> for [T]
         let points = (0..(num_coeffs + 2)).map(|i| (i as f64 / num_coeffs as f64) * mel_range + hz_to_mel(freq_bounds.0));
         let bins: Vec<usize> = points.map(|point| ((self.len() + 1) as f64 * mel_to_hz(point) / sample_rate).floor() as usize).collect();
 
-        let mut spectrum = vec![Complex::<T>::from(T::zero()); self.len()];
-        let mut fft = fft::FFT::new(self.len(), false);
-        let signal: Vec<Complex<T>> = self.iter().map(|e| Complex::<T>::from(e)).collect();
-        fft.process(&signal[..], &mut spectrum[..]);
+        let mut spectrum = vec![RustFFTComplex::<T>::from(T::zero()); self.len()];
+
+        let mut fft = FFTplanner::new(false).plan_fft(self.len());
+        let mut signal: Vec<RustFFTComplex<T>> = self.iter().map(|e| RustFFTComplex::<T>::from(e)).collect();
+        fft.process(&mut signal[..], &mut spectrum[..]);
 
         let energy_map = |window: &[usize]| -> T {
             let up = window[1] - window[0];
