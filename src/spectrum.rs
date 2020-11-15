@@ -447,7 +447,7 @@ impl<T: ?Sized> MFCC<T> for [T]
 
 #[cfg(test)]
 mod test {
-    extern crate sample;
+    extern crate dasp;
     extern crate rand;
 
     use super::*;

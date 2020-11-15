@@ -3,7 +3,7 @@
 #[cfg(feature = "valgrind")]
 extern crate alloc_system;
 
-extern crate sample;
+extern crate dasp;
 extern crate vox_box;
 extern crate num;
 

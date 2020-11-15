@@ -1,5 +1,5 @@
 extern crate hound;
-extern crate sample;
+extern crate dasp;
 extern crate vox_box;
 extern crate num;
 extern crate rustfft;

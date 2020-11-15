@@ -3,11 +3,11 @@ extern crate num;
 use num::{Float, ToPrimitive, FromPrimitive};
 use super::waves::Normalize;
 
-use sample;
-use sample::window::Window;
-use sample::{Sample, ToSampleSlice, FromSample};
-
-pub use sample::window::Hanning;
+use dasp::Sample;
+use dasp::sample::FromSample;
+use dasp::signal::window::Window;
+use dasp::slice::ToSampleSlice;
+use dasp::window::Window as WindowType;
 
 use std::collections::VecDeque;
 use std::f64::consts::PI;
@@ -229,26 +229,22 @@ pub fn improve_extremum<S: Sample + FromSample<f64>>(y: &[S], offset: isize, nx:
     }
 }
 
-pub trait LagType: sample::window::Type {
-    type Lag: sample::window::Type;
-}
-
 pub struct HanningLag;
 
-impl sample::window::Type for HanningLag {
-    fn at_phase<S: Sample>(phase: S) -> S {
+impl<S> WindowType<S> for HanningLag
+    where S: Sample
+{
+    type Output = S;
+
+    fn window(phase: S) -> Self::Output {
         let pi_2 = (PI * 2.).to_sample();
         let v: f64 = (phase.to_float_sample() * pi_2).to_sample::<f64>();
         let one_third: S::Float = (1.0 / 3.0).to_sample();
         let two_thirds: S::Float = (2.0 / 3.0).to_sample();
         let one: S::Float = 1.0.to_sample();
-        ((one - phase.to_float_sample()) * (two_thirds + (one_third * v.cos().to_sample()).to_sample::<S::Float>()) 
+        ((one - phase.to_float_sample()) * (two_thirds + (one_third * v.cos().to_sample()).to_sample::<S::Float>())
             + (one / pi_2) * v.sin().to_sample()).to_sample::<S>()
     }
-}
-
-impl LagType for Hanning {
-    type Lag = HanningLag;
 }
 
 /// Trait for things that can Autocorrelate. Implement the mutable version,
@@ -267,7 +263,7 @@ pub trait Autocorrelate<T>
 {
     fn autocorrelate_mut(&self, coeffs: &mut [T]);
     fn autocorrelate(&self, n_coeffs: usize) -> Vec<T> {
-        let mut coeffs: Vec<T> = vec![T::equilibrium(); n_coeffs];
+        let mut coeffs: Vec<T> = vec![T::EQUILIBRIUM; n_coeffs];
         self.autocorrelate_mut(&mut coeffs[..]);
         coeffs
     }
@@ -354,7 +350,7 @@ impl<'a, T: 'a + Float> Iterator for PitchExtractor<'a, T> {
 }
 
 pub trait Pitched<S, T: Float> {
-    fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, local_peak: S, global_peak: S, min: T, max: T) -> Vec<Pitch<T>>;
+    fn pitch<W: WindowType<f64, Output=f64>>(&self, sample_rate: T, threshold: T, local_peak: S, global_peak: S, min: T, max: T) -> Vec<Pitch<T>>;
 }
 
 /// Trait for finding local maxima in a given slice. `local_maxima` should return `Vec<(bin,
@@ -393,11 +389,11 @@ impl<S, T> Pitched<S, T> for [S]
     ///
     /// A third pass, using PitchExtractor, should find a path through these candidates that
     /// maximizes both the smoothness of the pitch contour and the strength of the pitches.
-    fn pitch<W: LagType>(&self, sample_rate: T, threshold: T, local_peak: S, global_peak: S, min: T, max: T) -> Vec<Pitch<T>> {
+    fn pitch<W: WindowType<f64, Output=f64>>(&self, sample_rate: T, threshold: T, local_peak: S, global_peak: S, min: T, max: T) -> Vec<Pitch<T>> {
         // TODO: need 2 empty mutable Vecs, 
         // self_lag: [T; 2*self.len()]
         // maxima: [Pitch<T>; max_maxima], theoretically could be up to (0.5 * self.len()).ceil()
-        let window_lag = Window::<[S; 1], W::Lag>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]);
+        let window_lag = Window::<[S; 1], W>::new(self.len()).take(self.len()).map(|x| x.to_sample_slice()[0]);
 
         // TODO: remove allocation
         let mut self_lag = self.autocorrelate(self.len());
@@ -457,7 +453,7 @@ impl<S, T> Pitched<S, T> for [S]
 
 #[cfg(test)]
 mod tests {
-    extern crate sample;
+    extern crate dasp;
 
     use super::*;
     use super::super::waves::*;

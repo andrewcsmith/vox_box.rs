@@ -1,7 +1,6 @@
 extern crate num;
-extern crate num_complex;
 extern crate rand;
-extern crate sample;
+extern crate dasp;
 extern crate rustfft;
 
 // Declare local mods
@@ -12,10 +11,11 @@ pub mod spectrum;
 pub mod waves;
 pub mod error;
 
-use sample::{Sample, Signal, signal};
-use sample::conv::Duplex;
-use sample::window::Type;
-use sample::interpolate::{Linear, Converter};
+use dasp::{signal, Sample, Signal};
+use dasp::signal::interpolate::Converter;
+use dasp::interpolate::linear::Linear;
+use dasp::sample::Duplex;
+use dasp::window::{Hanning, Window};
 
 use spectrum::{LPC, Resonance, EstimateFormants};
 use polynomial::Polynomial;
@@ -65,7 +65,7 @@ pub fn find_formants<S>(buf: &mut [S], sample_rate: S, resample_ratio: f64, resa
 
     let len_inv = 1f64 / resampled_len as f64;
     for (idx, s) in resampled_buf.iter_mut().enumerate() {
-        let window = sample::window::Hanning::at_phase(S::from_sample(idx as f64 * len_inv));
+        let window = Hanning::window(S::from_sample(idx as f64 * len_inv));
         *s = *s * window;
     }
 

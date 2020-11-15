@@ -1,6 +1,6 @@
 extern crate num;
 extern crate hound;
-extern crate sample;
+extern crate dasp;
 extern crate vox_box;
 
 use hound::WavReader;

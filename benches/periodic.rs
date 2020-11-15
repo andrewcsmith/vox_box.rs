@@ -1,7 +1,7 @@
 #![cfg(feature = "nightly")]
 #![feature(test)]
 
-extern crate sample;
+extern crate dasp;
 extern crate test;
 extern crate vox_box;
 extern crate num;

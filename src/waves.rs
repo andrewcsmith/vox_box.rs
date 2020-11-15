@@ -1,11 +1,11 @@
 extern crate num;
-extern crate sample;
+extern crate dasp;
 
 use std::f64::consts::PI;
 use std::iter::Iterator;
 use std::cmp::Ordering::*;
 
-use sample::{Sample, FloatSample, FromSample};
+use dasp::sample::{Sample, FloatSample, FromSample};
 
 pub trait RMS<S> {
     fn rms(&self) -> S;
@@ -14,7 +14,7 @@ pub trait RMS<S> {
 impl<S: Sample> RMS<S> for [S] {
     fn rms(&self) -> S {
         let sum = self.iter()
-            .fold(S::equilibrium(), |acc, &item: &S| {
+            .fold(S::EQUILIBRIUM, |acc, &item: &S| {
                 acc.add_amp(item.mul_amp(item.to_float_sample()).to_signed_sample())
             });
         (sum.to_float_sample() / (self.len() as f64).to_sample::<S::Float>())
@@ -28,7 +28,7 @@ pub trait Amplitude<S> {
 
 impl<S: Sample> Amplitude<S> for S {
     fn amplitude(self) -> S {
-        if self < S::equilibrium() {
+        if self < S::EQUILIBRIUM {
             self.mul_amp(S::Float::from_sample(-1.0))
         } else {
             self
@@ -67,7 +67,7 @@ pub trait Normalize<S> {
 
 impl<S: Sample> Normalize<S> for [S] {
     fn normalize_with_max(&mut self, max: Option<S>) {
-        let scale_factor: <S as Sample>::Float = <S as Sample>::identity() / 
+        let scale_factor: <S as Sample>::Float = <S as Sample>::IDENTITY /
             max.unwrap_or(self.max_amplitude()).to_float_sample();
         for elem in self.iter_mut() {
             *elem = elem.mul_amp(scale_factor);
@@ -97,7 +97,7 @@ impl<S: Sample + FromSample<f64>> Filter for [S] {
 
 #[cfg(test)]
 mod tests {
-    extern crate sample;
+    extern crate dasp;
 
     use super::*;
     use super::super::*;
