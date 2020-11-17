@@ -490,7 +490,7 @@ mod tests {
         let mut maxima: f64 = vector.to_sample_slice().max_amplitude();
         for chunk in Windower::hanning(&vector[..], bin, hop) {
             let chunk_data: Vec<f64> = chunk.take(bin).collect();
-            let pitch = chunk_data.to_sample_slice().pitch::<Hanning>(44100., 0.2, maxima, maxima, 100., 500.);
+            let pitch = chunk_data.to_sample_slice().pitch::<HanningLag>(44100., 0.2, maxima, maxima, 100., 500.);
             println!("pitch: {:?}", pitch);
             assert!((pitch[0].frequency - exp_freq).abs() < 1.0e-2);
         }
