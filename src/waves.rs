@@ -1,11 +1,11 @@
 extern crate num;
-extern crate sample;
+extern crate dasp;
 
 use std::f64::consts::PI;
 use std::iter::Iterator;
 use std::cmp::Ordering::*;
 
-use sample::{Sample, FloatSample, FromSample};
+use dasp::sample::{Sample, FloatSample, FromSample};
 
 pub trait RMS<S> {
     fn rms(&self) -> S;
@@ -14,7 +14,7 @@ pub trait RMS<S> {
 impl<S: Sample> RMS<S> for [S] {
     fn rms(&self) -> S {
         let sum = self.iter()
-            .fold(S::equilibrium(), |acc, &item: &S| {
+            .fold(S::EQUILIBRIUM, |acc, &item: &S| {
                 acc.add_amp(item.mul_amp(item.to_float_sample()).to_signed_sample())
             });
         (sum.to_float_sample() / (self.len() as f64).to_sample::<S::Float>())
@@ -28,7 +28,7 @@ pub trait Amplitude<S> {
 
 impl<S: Sample> Amplitude<S> for S {
     fn amplitude(self) -> S {
-        if self < S::equilibrium() {
+        if self < S::EQUILIBRIUM {
             self.mul_amp(S::Float::from_sample(-1.0))
         } else {
             self
@@ -67,7 +67,7 @@ pub trait Normalize<S> {
 
 impl<S: Sample> Normalize<S> for [S] {
     fn normalize_with_max(&mut self, max: Option<S>) {
-        let scale_factor: <S as Sample>::Float = <S as Sample>::identity() / 
+        let scale_factor: <S as Sample>::Float = <S as Sample>::IDENTITY /
             max.unwrap_or(self.max_amplitude()).to_float_sample();
         for elem in self.iter_mut() {
             *elem = elem.mul_amp(scale_factor);
@@ -97,18 +97,18 @@ impl<S: Sample + FromSample<f64>> Filter for [S] {
 
 #[cfg(test)]
 mod tests {
-    extern crate sample;
+    extern crate dasp;
 
     use super::*;
     use super::super::*;
     use super::super::periodic::*;
 
-    use sample::conv::ToSampleSlice;
-    use sample::window::Window;
+    use dasp::slice::ToSampleSlice;
+    use dasp::signal::window::Window;
 
     fn sine(len: usize) -> Vec<f64> {
-        let rate = sample::signal::rate(len as f64).const_hz(1.0);
-        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
+        let rate = dasp::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<f64>>().to_sample_slice().to_vec()
     }
 
     #[test]
@@ -119,12 +119,12 @@ mod tests {
 
     #[test]
     fn test_window_autocorr() {
-        let lag_window: Window<[f64; 1], HanningLag> = Window::new(16);
-        let data: Vec<[f64; 1]> = lag_window.take(16).collect();
+        let lag_window: Window<f64, HanningLag> = Window::new(16);
+        let data: Vec<f64> = lag_window.take(16).collect();
         println!("window autocorr: {:?}", &data);
-        let window: Window<[f64; 1], Hanning> = Window::new(16);
+        let window: Window<f64, Hanning> = Window::new(16);
         let mut manual: Vec<f64> = {
-            let mut d: Vec<[f64; 1]> = window.take(16).collect();
+            let mut d: Vec<f64> = window.take(16).collect();
             d.to_sample_slice().autocorrelate(16)
         };
         manual.normalize();

@@ -1,8 +1,7 @@
 extern crate num;
-extern crate sample;
+extern crate dasp;
 
-pub use num_complex::*;
-use num::Float;
+use num::{Complex, Float};
 use num::traits::FromPrimitive;
 
 pub trait SquareRoot<T> {
@@ -13,7 +12,7 @@ pub trait SquareRoot<T> {
 impl<T: Float + FromPrimitive> SquareRoot<T> for Complex<T> {
     fn sqrt(&self) -> Complex<T> {
         let (r, theta) = self.to_polar();
-        Complex::<T>::from_polar(&r.sqrt(), &(theta / T::from_f32(2.0f32).unwrap()))
+        Complex::<T>::from_polar(r.sqrt(), theta / T::from_f32(2.0f32).unwrap())
     }
 }
 

@@ -1,5 +1,5 @@
 extern crate num;
-extern crate rustfft as fft;
+extern crate rustfft;
 
 use std::f64::consts::PI;
 use std::default::Default;
@@ -8,6 +8,9 @@ use num::{Complex, Float, ToPrimitive, FromPrimitive};
 use num::traits::{Zero, Signed};
 use std::fmt::Debug;
 use std::cmp::Ordering;
+
+use rustfft::{FFTplanner, FFTnum};
+use rustfft::num_complex::Complex as RustFFTComplex;
 
 use error::*;
 
@@ -405,7 +408,8 @@ impl<T: ?Sized> MFCC<T> for [T]
              FromPrimitive + 
              Into<Complex<T>> + 
              Zero + 
-             Signed
+             Signed +
+             FFTnum
 {
     fn mfcc(&self, num_coeffs: usize, freq_bounds: (f64, f64), sample_rate: f64) -> Vec<T> {
         let mel_range = hz_to_mel(freq_bounds.1) - hz_to_mel(freq_bounds.0);
@@ -413,10 +417,11 @@ impl<T: ?Sized> MFCC<T> for [T]
         let points = (0..(num_coeffs + 2)).map(|i| (i as f64 / num_coeffs as f64) * mel_range + hz_to_mel(freq_bounds.0));
         let bins: Vec<usize> = points.map(|point| ((self.len() + 1) as f64 * mel_to_hz(point) / sample_rate).floor() as usize).collect();
 
-        let mut spectrum = vec![Complex::<T>::from(T::zero()); self.len()];
-        let mut fft = fft::FFT::new(self.len(), false);
-        let signal: Vec<Complex<T>> = self.iter().map(|e| Complex::<T>::from(e)).collect();
-        fft.process(&signal[..], &mut spectrum[..]);
+        let mut spectrum = vec![RustFFTComplex::<T>::from(T::zero()); self.len()];
+
+        let mut fft = FFTplanner::new(false).plan_fft(self.len());
+        let mut signal: Vec<RustFFTComplex<T>> = self.iter().map(|e| RustFFTComplex::<T>::from(e)).collect();
+        fft.process(&mut signal[..], &mut spectrum[..]);
 
         let energy_map = |window: &[usize]| -> T {
             let up = window[1] - window[0];
@@ -442,20 +447,21 @@ impl<T: ?Sized> MFCC<T> for [T]
 
 #[cfg(test)]
 mod test {
-    extern crate sample;
+    extern crate dasp;
     extern crate rand;
 
     use super::*;
     use rand::{thread_rng, Rng};
     use waves::*;
     use periodic::*;
-    use sample::{window, Signal, ToSampleSlice};
+    use dasp::Signal;
+    use dasp::slice::ToSampleSlice;
     use num::Complex;
     use polynomial::Polynomial;
 
     fn sine(len: usize) -> Vec<f64> {
-        let rate = sample::signal::rate(len as f64).const_hz(1.0);
-        rate.clone().sine().take(len).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec()
+        let rate = dasp::signal::rate(len as f64).const_hz(1.0);
+        rate.clone().sine().take(len).collect::<Vec<f64>>().to_sample_slice().to_vec()
     }
 
     #[test]
@@ -488,7 +494,7 @@ mod test {
 
     #[test]
     fn test_sine_resonances_praat() {
-        let sine = sample::signal::rate(44100.).const_hz(440.).sine().take(512).collect::<Vec<[f64; 1]>>().to_sample_slice().to_vec();
+        let sine = dasp::signal::rate(44100.).const_hz(440.).sine().take(512).collect::<Vec<f64>>().to_sample_slice().to_vec();
         let coeffs: Vec<f64> = sine.lpc_praat(4).unwrap();
         println!("coeffs: {:?}", coeffs);
         let complex_coeffs: Vec<Complex<f64>> = [1.].iter().chain(coeffs.iter()).rev().map(|c| Complex::<f64>::new(*c, 0.)).collect();
@@ -579,9 +585,9 @@ mod test {
     #[test]
     fn test_mfcc() {
         let mut rng = thread_rng();
-        let mut vec: Vec<f64> = (0..256).map(|_| rng.gen_range::<f64>(-1., 1.)).collect();
+        let mut vec: Vec<f64> = (0..256).map(|_| rng.gen_range::<f64, f64, f64>(-1., 1.)).collect();
         vec.preemphasis(0.1f64 * 22_050.);
-        let hanning_window: Vec<[f64; 1]> = window::hanning(256).take(256).collect();
+        let hanning_window: Vec<f64> = dasp::signal::window::hanning(256).take(256).collect();
         for (v, w) in vec.iter_mut().zip(hanning_window.to_sample_slice().iter()) {
             *v *= *w;
         }

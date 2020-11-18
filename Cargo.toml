@@ -16,15 +16,20 @@ doctest = false
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-num = "0.2"
-num-complex = "0.2"
-rand = "0.3"
-libc = "0.2"
-rustfft = "1.0"
-sample = "0.10"
+num = "^0.3"
+rand = "^0.7"
+libc = "^0.2"
+rustfft = "^4.0"
+
+[dependencies.dasp]
+version = "^0.11"
+features = ["interpolate", "interpolate-linear", "signal", "signal-window", "signal-window-rectangle", "window-hanning", "slice"]
 
 [dev-dependencies]
-hound = "2.0"
+hound = "^3.4"
+
+[dev-dependencies.dasp]
+features = ["signal-window-hanning"]
 
 [features]
 nightly = []
